@@ -1,26 +1,227 @@
 @import "tailwindcss";
 
+/* Offline House brand system — from the brand board */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #000000;
+  --ivory: #f8f7f2;
+  --stone: #d9d1c6;
+  --gold: #d4af7c; /* champagne gold: fills, lines, use on dark */
+  --gold-deep: #8f6a30; /* text-safe gold on ivory */
+  --sage: #a7b49f;
+  --line: #e6e1d7;
+  --muted: #5d584f;
+  --sale: #b3261e;
+
+  /* category accents */
+  --cat-tech: #7b9bbd;
+  --cat-home: #d4af7c;
+  --cat-living: #a7b49f;
+  --cat-beauty: #e59aa8;
+  --cat-essentials: #b9a4e6;
+
+  --background: var(--ivory);
+  --foreground: var(--ink);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ink: var(--ink);
+  --color-ivory: var(--ivory);
+  --color-stone: var(--stone);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-sage: var(--sage);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --color-sale: var(--sale);
+  --font-sans: var(--font-jost);
+  --font-serif: var(--font-cormorant);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  scroll-behavior: smooth;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-jost), system-ui, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold-deep);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--ink);
+}
+
+/* Motion that answers an action */
+@keyframes announce {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-announce {
+  animation: announce 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes pop {
+  0% {
+    transform: scale(0.4);
+  }
+  60% {
+    transform: scale(1.25);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.animate-pop {
+  animation: pop 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes drawer-item {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-drawer-item {
+  animation: drawer-item 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* ---- Hero motion: paste at the bottom of globals.css, above the reduced-motion block ---- */
+
+.mask-word {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: top;
+  padding-bottom: 0.08em; /* stops descenders being clipped */
+}
+
+@keyframes word-up {
+  from { transform: translateY(105%); }
+  to   { transform: none; }
+}
+.animate-word-up {
+  display: inline-block;
+  animation: word-up 1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-fade-up {
+  animation: fade-up 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-fade-in {
+  animation: fade-in 0.6s ease both;
+}
+
+@keyframes disc-in {
+  from { opacity: 0; transform: scale(0.82); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-disc-in {
+  animation: disc-in 1.3s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+@keyframes tile-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.9); }
+  to   { opacity: 1; transform: none; }
+}
+.animate-tile-in {
+  animation: tile-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+
+@keyframes spin-slow { to { transform: rotate(360deg); } }
+@keyframes spin-rev  { to { transform: rotate(-360deg); } }
+.animate-spin-slow { animation: spin-slow 40s linear infinite; }
+.animate-spin-rev  { animation: spin-rev 40s linear infinite; }
+
+@keyframes draw {
+  from { stroke-dasharray: 1; stroke-dashoffset: 1; }
+  to   { stroke-dasharray: 1; stroke-dashoffset: 0; }
+}
+.animate-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.8s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.7; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+.animate-pulse-ring {
+  animation: pulse-ring 2.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(40px, -30px, 0) scale(1.12); }
+}
+.animate-drift {
+  animation: drift 18s ease-in-out infinite;
+}
+
+/* ---- Category showcase: paste into globals.css, above the reduced-motion block ---- */
+
+/* Tiles wipe up from the bottom edge. The end inset is negative so hover
+   shadows and the lift on hover are never clipped once revealed. */
+.reveal-tile {
+  clip-path: inset(100% 0 0 0 round 28px);
+  opacity: 0;
+  transform: translateY(32px);
+  transition:
+    clip-path 1.1s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.6s ease,
+    transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal-tile[data-in="true"] {
+  clip-path: inset(-60px -24px -60px -24px round 28px);
+  opacity: 1;
+  transform: none;
 }
