@@ -2,7 +2,15 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import { useWishlist } from "../WishListProvider";
 
 /* ---------- types ---------- */
 
@@ -195,43 +203,59 @@ export default function BestSellers({
   const items = products && products.length > 0 ? products : SAMPLE;
 
   const [sectionRef, seen] = useInView<HTMLElement>();
-  const rail = useRef<HTMLUListElement>(null);
-  const [thumb, setThumb] = useState({ w: 100, l: 0 });
-  const [atStart, setAtStart] = useState(true);
-  const [atEnd, setAtEnd] = useState(false);
-  const [liked, setLiked] = useState<Set<string>>(new Set());
+  const [rail, setRail] = useState<HTMLUListElement | null>(null);
+  const { has, toggle } = useWishlist();
   const [added, setAdded] = useState<string | null>(null);
   const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const measure = useCallback(() => {
-    const el = rail.current;
-    if (!el) return;
-    const { scrollLeft, scrollWidth, clientWidth } = el;
-    setThumb({
-      w: Math.min(100, (clientWidth / scrollWidth) * 100),
-      l: (scrollLeft / scrollWidth) * 100,
-    });
-    setAtStart(scrollLeft < 4);
-    setAtEnd(scrollLeft + clientWidth >= scrollWidth - 4);
-  }, []);
+  // Scroll position of the rail lives in the DOM, so subscribe to it
+  // instead of copying it into state from an effect. The snapshot is a
+  // primitive string, which keeps it stable between reads.
+  const subscribeRail = useCallback(
+    (notify: () => void) => {
+      if (!rail) return () => {};
+      let raf = 0;
+      const onChange = () => {
+        cancelAnimationFrame(raf);
+        raf = requestAnimationFrame(notify);
+      };
+      rail.addEventListener("scroll", onChange, { passive: true });
+      window.addEventListener("resize", onChange);
+      const ro = new ResizeObserver(onChange);
+      ro.observe(rail);
+      return () => {
+        cancelAnimationFrame(raf);
+        rail.removeEventListener("scroll", onChange);
+        window.removeEventListener("resize", onChange);
+        ro.disconnect();
+      };
+    },
+    [rail],
+  );
+  const getRailSnapshot = useCallback(
+    () =>
+      rail
+        ? `${Math.round(rail.scrollLeft)}|${rail.scrollWidth}|${rail.clientWidth}`
+        : "0|1|1",
+    [rail],
+  );
+  const railMetrics = useSyncExternalStore(
+    subscribeRail,
+    getRailSnapshot,
+    () => "0|1|1",
+  );
 
-  useEffect(() => {
-    measure();
-    const el = rail.current;
-    if (!el) return;
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(measure);
+  const { thumb, atStart, atEnd } = useMemo(() => {
+    const [left, width, client] = railMetrics.split("|").map(Number);
+    return {
+      thumb: {
+        w: Math.min(100, (client / width) * 100),
+        l: (left / width) * 100,
+      },
+      atStart: left < 4,
+      atEnd: left + client >= width - 4,
     };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-    return () => {
-      cancelAnimationFrame(raf);
-      el.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [measure, items.length]);
+  }, [railMetrics]);
 
   useEffect(
     () => () => {
@@ -241,17 +265,19 @@ export default function BestSellers({
   );
 
   const scrollByPage = (dir: 1 | -1) => {
-    const el = rail.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
+    if (!rail) return;
+    rail.scrollBy({ left: dir * rail.clientWidth * 0.85, behavior: "smooth" });
   };
 
-  const toggleLike = (id: string) =>
-    setLiked((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const toggleLike = (p: Product) =>
+    toggle({
+      id: p.id,
+      slug: p.slug,
+      name: p.name,
+      price: p.price,
+      compareAtPrice: p.compareAtPrice ?? null,
+      image: p.image ?? null,
+      category: p.category ?? null,
     });
 
   const addToBag = (p: Product) => {
@@ -321,13 +347,13 @@ export default function BestSellers({
 
         {/* Rail */}
         <ul
-          ref={rail}
+          ref={setRail}
           aria-roledescription="carousel"
           aria-label={title}
           className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-5 pb-2 [scrollbar-width:none] sm:-mx-8 sm:gap-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
         >
           {items.map((p, i) => {
-            const isLiked = liked.has(p.id);
+            const isLiked = has(p.id);
             const onSale = !!p.compareAtPrice && p.compareAtPrice > p.price;
             const off = onSale
               ? Math.round((1 - p.price / (p.compareAtPrice as number)) * 100)
@@ -418,7 +444,7 @@ export default function BestSellers({
                           ? `Remove ${p.name} from wishlist`
                           : `Add ${p.name} to wishlist`
                       }
-                      onClick={() => toggleLike(p.id)}
+                      onClick={() => toggleLike(p)}
                       className={`absolute right-3 top-3 z-10 grid h-10 w-10 place-items-center rounded-full bg-white/85 backdrop-blur transition-colors duration-300 hover:bg-white ${
                         isLiked ? "text-sale" : "text-ink"
                       }`}

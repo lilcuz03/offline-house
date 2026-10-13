@@ -9,7 +9,7 @@ import Newsletter from "@/components/home/newsletter";
 export default function Home() {
   return (
     <>
-      <Header cartCount={0} />
+      <Header />
       <main
         id="main"
         className="flex-1"

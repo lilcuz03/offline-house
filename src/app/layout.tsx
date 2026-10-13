@@ -3,6 +3,8 @@ import { Cormorant_Garamond, Jost } from "next/font/google";
 import { SITE } from "@/lib/categories";
 import "./globals.css";
 import Footer from "@/components/Footer";
+import CartProvider from "@/components/CartProvider";
+import WishlistProvider from "@/components/WishListProvider";
 
 const jost = Jost({
   variable: "--font-jost",
@@ -97,7 +99,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        {children}
+        <CartProvider>
+          <WishlistProvider>{children}</WishlistProvider>
+        </CartProvider>
         <Footer />
       </body>
     </html>

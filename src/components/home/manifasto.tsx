@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 const TEXT =
   "We make the things that keep your devices charged, so you can put them down. Chargers and cables built to outlast the season. Home pieces that give your evenings back. Fewer notifications, more of everything else.";
@@ -10,61 +10,59 @@ const WORDS = TEXT.split(" ");
 
 const EASE = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 
+const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
+const SCALE = 1000; // progress is read as a whole number from 0 to 1000
+
+// How far the reader has got through the block, from 0 to SCALE.
+function readProgress(el: HTMLElement | null): number {
+  // Reduced motion: show everything charged and finished.
+  if (window.matchMedia(REDUCED_MOTION).matches) return SCALE;
+  if (!el) return 0;
+  const rect = el.getBoundingClientRect();
+  const vh = window.innerHeight;
+  const start = vh * 0.8; // reading begins as the block enters here
+  const end = vh * 0.35; // finished once its bottom reaches here
+  const p = Math.min(
+    1,
+    Math.max(0, (start - rect.top) / (rect.height + start - end)),
+  );
+  return Math.round(p * SCALE);
+}
+
 export default function Manifesto() {
-  const block = useRef<HTMLDivElement>(null);
-  const [lit, setLit] = useState(0);
-  const [pct, setPct] = useState(0);
+  // The block is held in state (via a callback ref) so the subscription
+  // below can be set up for exactly that element.
+  const [block, setBlock] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
+  // Scroll position is external state: subscribe to it rather than copying
+  // it into React state from an effect.
+  const subscribe = useCallback((notify: () => void) => {
     let raf = 0;
-
-    // Honour reduced motion: show everything charged and finished.
-    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (mediaQuery?.matches) {
-      raf = window.requestAnimationFrame(() => {
-        setLit(WORDS.length);
-        setPct(100);
-      });
-      return () => window.cancelAnimationFrame(raf);
-    }
-
-    const update = () => {
-      const el = block.current;
-      if (!el || typeof window === "undefined") return;
-
-      const rect = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      const start = vh * 0.8; // reading begins as the block enters here
-      const end = vh * 0.35; // finished once its bottom reaches here
-      const p = Math.min(
-        1,
-        Math.max(0, (start - rect.top) / (rect.height + start - end)),
-      );
-      setPct(Math.round(p * 100));
-      // The last couple of words light up just before the ring completes
-      setLit(Math.min(WORDS.length, Math.floor(p * (WORDS.length + 3))));
-    };
-    const onScroll = () => {
-      if (typeof window === "undefined") return;
+    const onChange = () => {
       cancelAnimationFrame(raf);
-      raf = window.requestAnimationFrame(update);
+      raf = requestAnimationFrame(notify);
     };
-
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll);
-
+    const mq = window.matchMedia(REDUCED_MOTION);
+    window.addEventListener("scroll", onChange, { passive: true });
+    window.addEventListener("resize", onChange);
+    mq.addEventListener("change", onChange);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", onScroll);
+      window.removeEventListener("scroll", onChange);
+      window.removeEventListener("resize", onChange);
+      mq.removeEventListener("change", onChange);
     };
   }, []);
 
+  const getSnapshot = useCallback(() => readProgress(block), [block]);
+  const progress = useSyncExternalStore(subscribe, getSnapshot, () => 0);
+
+  const pct = Math.round((progress / SCALE) * 100);
+  // The last couple of words light up just before the ring completes
+  const lit = Math.min(
+    WORDS.length,
+    Math.floor((progress / SCALE) * (WORDS.length + 3)),
+  );
   const full = pct >= 100;
 
   return (
@@ -141,7 +139,7 @@ export default function Manifesto() {
 
         {/* Words light up with scroll */}
         <div
-          ref={block}
+          ref={setBlock}
           className="lg:col-span-9"
         >
           <p className="font-serif text-[clamp(1.9rem,4.4vw,3.6rem)] font-light leading-[1.14] tracking-[-0.01em]">

@@ -225,3 +225,14 @@ body {
   opacity: 1;
   transform: none;
 }
+
+/* ---- Product page: paste into globals.css, above the reduced-motion block ---- */
+
+/* A soft highlight that sweeps across the Add to bag button every few seconds */
+@keyframes sheen {
+  0%, 55%  { transform: translateX(-150%) skewX(-12deg); }
+  100%     { transform: translateX(420%) skewX(-12deg); }
+}
+.animate-sheen {
+  animation: sheen 5s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}

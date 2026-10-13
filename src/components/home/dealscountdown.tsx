@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 type DealsCountdownProps = {
   /** ISO string or Date. Defaults to the end of the coming Sunday (local time). */
@@ -34,6 +34,34 @@ function parts(ms: number) {
   };
 }
 
+/* ---------- clock ---------- */
+
+// The current time is external state. It is read through
+// useSyncExternalStore: the snapshot is whole seconds (a primitive, so it is
+// stable between reads) and is refreshed by one interval that exists only
+// while a component is subscribed. The server snapshot is -1, which the
+// component treats as "not mounted yet".
+let nowSeconds = 0;
+
+function currentSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function subscribeClock(notify: () => void) {
+  nowSeconds = currentSeconds();
+  const id = setInterval(() => {
+    nowSeconds = currentSeconds();
+    notify();
+  }, 1000);
+  return () => clearInterval(id);
+}
+
+function getClock() {
+  return nowSeconds || (nowSeconds = currentSeconds());
+}
+
+const getServerClock = () => -1;
+
 /* ---------- one rolling digit ---------- */
 
 // The strip runs 9 down to 0, then a spare 9. Counting down moves the strip
@@ -42,31 +70,34 @@ const STRIP = [9, 8, 7, 6, 5, 4, 3, 2, 1, 0, 9];
 const idx = (v: number) => 9 - v;
 
 function Digit({ value }: { value: number }) {
-  const [pos, setPos] = useState(idx(value));
-  const [animate, setAnimate] = useState(true);
-  const prev = useRef(value);
+  // The strip position is worked out while rendering, from the previous and
+  // the new value, instead of being copied into state from an effect.
+  const [roll, setRoll] = useState({
+    prev: value,
+    pos: idx(value),
+    animate: true,
+  });
 
-  useEffect(() => {
-    if (value === prev.current) return;
-    setAnimate(true);
-    setPos(prev.current === 0 && value === 9 ? 10 : idx(value));
-    prev.current = value;
-  }, [value]);
+  if (roll.prev !== value) {
+    setRoll({
+      prev: value,
+      pos: roll.prev === 0 && value === 9 ? 10 : idx(value),
+      animate: true,
+    });
+  }
 
   return (
     <span className="relative block h-[1em] w-[0.62em] overflow-hidden text-center leading-none">
       <span
         aria-hidden="true"
         onTransitionEnd={() => {
-          if (pos === 10) {
-            setAnimate(false);
-            setPos(0);
-          }
+          // After rolling onto the spare 9, snap back to the real one unseen
+          setRoll((r) => (r.pos === 10 ? { ...r, pos: 0, animate: false } : r));
         }}
         className={`block ${
-          animate ? `transition-transform duration-700 ${EASE}` : ""
+          roll.animate ? `transition-transform duration-700 ${EASE}` : ""
         }`}
-        style={{ transform: `translateY(-${pos * (100 / 11)}%)` }}
+        style={{ transform: `translateY(-${roll.pos * (100 / 11)}%)` }}
       >
         {STRIP.map((n, i) => (
           <span
@@ -102,20 +133,22 @@ export default function DealsCountdown({
   discountLabel = "40%",
   href = "/collections/deals",
 }: DealsCountdownProps) {
-  const [time, setTime] = useState<ReturnType<typeof parts> | null>(null);
-  const [expired, setExpired] = useState(false);
+  const seconds = useSyncExternalStore(
+    subscribeClock,
+    getClock,
+    getServerClock,
+  );
+  const mounted = seconds >= 0;
 
-  useEffect(() => {
-    const target = endsAt ? new Date(endsAt) : endOfComingSunday();
-    const tick = () => {
-      const left = target.getTime() - Date.now();
-      setTime(parts(left));
-      setExpired(left <= 0);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [endsAt]);
+  // The default deadline is fixed the first time the component renders, so
+  // the countdown can finish and show "ended" instead of rolling forward.
+  // It is not displayed until the clock is available on the client.
+  const [defaultEnd] = useState(() => endOfComingSunday().getTime());
+  const target = endsAt ? new Date(endsAt).getTime() : defaultEnd;
+
+  const left = mounted ? target - seconds * 1000 : 0;
+  const time = mounted ? parts(left) : null;
+  const expired = mounted && left <= 0;
 
   const ringText =
     "Marked down this week ✦ Marked down this week ✦ Marked down this week ✦ ";

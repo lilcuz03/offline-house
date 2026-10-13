@@ -10,11 +10,8 @@ import {
   CATEGORIES,
   POPULAR_SEARCHES,
 } from "../lib/categories";
-
-type HeaderProps = {
-  cartCount?: number;
-  onCartClick?: () => void;
-};
+import { useCart } from "./CartProvider";
+import { useWishlist } from "./WishListProvider";
 
 const EASE = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 
@@ -99,8 +96,20 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 const iconButton =
   "relative grid h-10 w-10 place-items-center rounded-full text-ink transition-colors duration-300 hover:bg-stone/40";
 
-export default function Header({ cartCount = 0, onCartClick }: HeaderProps) {
+const badge =
+  "animate-pop absolute right-0 top-0 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-ink px-1 text-[10px] font-medium text-white";
+
+export default function Header() {
   const router = useRouter();
+
+  // Counts and the drawer trigger come straight from the providers.
+  // Counts stay at 0 until the saved lists have loaded, so the server
+  // and client render the same thing on first paint.
+  const { count, openCart, hydrated: cartReady } = useCart();
+  const { count: savedTotal, hydrated: savedReady } = useWishlist();
+  const cartCount = cartReady ? count : 0;
+  const savedCount = savedReady ? savedTotal : 0;
+
   const [scrolled, setScrolled] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [mega, setMega] = useState<string | null>(null);
@@ -380,19 +389,25 @@ export default function Header({ cartCount = 0, onCartClick }: HeaderProps) {
               </Link>
               <Link
                 href="/wishlist"
-                aria-label="Wishlist"
+                aria-label={`Wishlist, ${savedCount} ${savedCount === 1 ? "item" : "items"} saved`}
                 className={`${iconButton} hidden md:grid`}
               >
                 <HeartIcon />
+                {savedCount > 0 && (
+                  <span
+                    key={savedCount}
+                    className={badge}
+                  >
+                    {savedCount}
+                  </span>
+                )}
               </Link>
               <Link
                 href="/cart"
                 aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
                 onClick={(e) => {
-                  if (onCartClick) {
-                    e.preventDefault();
-                    onCartClick();
-                  }
+                  e.preventDefault();
+                  openCart();
                 }}
                 className={iconButton}
               >
@@ -400,7 +415,7 @@ export default function Header({ cartCount = 0, onCartClick }: HeaderProps) {
                 {cartCount > 0 && (
                   <span
                     key={cartCount}
-                    className="animate-pop absolute right-0 top-0 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-ink px-1 text-[10px] font-medium text-white"
+                    className={badge}
                   >
                     {cartCount}
                   </span>
@@ -759,12 +774,18 @@ export default function Header({ cartCount = 0, onCartClick }: HeaderProps) {
           </nav>
 
           <div className="shrink-0 border-t border-line px-5 py-5">
-            <div className="flex gap-6 text-sm text-ink">
+            <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink">
               <Link
                 href="/account"
                 onClick={() => setMenuOpen(false)}
               >
                 Account
+              </Link>
+              <Link
+                href="/wishlist"
+                onClick={() => setMenuOpen(false)}
+              >
+                Wishlist{savedCount > 0 ? ` (${savedCount})` : ""}
               </Link>
               <Link
                 href="/track-order"
