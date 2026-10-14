@@ -5,6 +5,7 @@ import "./globals.css";
 import Footer from "@/components/Footer";
 import CartProvider from "@/components/CartProvider";
 import WishlistProvider from "@/components/WishListProvider";
+import CookieConsent from "@/components/Cookieconsent";
 
 const jost = Jost({
   variable: "--font-jost",
@@ -103,6 +104,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <WishlistProvider>{children}</WishlistProvider>
         </CartProvider>
         <Footer />
+        <CookieConsent />
       </body>
     </html>
   );

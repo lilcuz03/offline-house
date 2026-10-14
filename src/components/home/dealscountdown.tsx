@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 
 type DealsCountdownProps = {
   /** ISO string or Date. Defaults to the end of the coming Sunday (local time). */
@@ -144,9 +144,9 @@ export default function DealsCountdown({
   // the countdown can finish and show "ended" instead of rolling forward.
   // It is not displayed until the clock is available on the client.
   const [defaultEnd, setDefaultEnd] = useState<number | null>(null);
-  useEffect(() => {
+  if (defaultEnd === null && seconds >= 0) {
     setDefaultEnd(endOfComingSunday().getTime());
-  }, []);
+  }
   const target = endsAt ? new Date(endsAt).getTime() : defaultEnd;
 
   const left = mounted && target !== null ? target - seconds * 1000 : 0;

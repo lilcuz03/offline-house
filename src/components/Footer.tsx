@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES } from "../lib/categories";
+import { openCookieSettings } from "./Cookieconsent";
 
 type Social = { label: string; href: string };
 
@@ -246,6 +247,19 @@ export default function Footer({
                     <FooterLink href={l.href}>{l.label}</FooterLink>
                   </li>
                 ))}
+                <li>
+                  <button
+                    type="button"
+                    onClick={openCookieSettings}
+                    className="group relative inline-block py-1.5 text-left text-[15px] text-white/70 transition-colors duration-300 hover:text-white"
+                  >
+                    Cookie settings
+                    <span
+                      aria-hidden="true"
+                      className={`absolute inset-x-0 bottom-0.5 h-px origin-left scale-x-0 bg-gold transition-transform duration-500 ${EASE} group-hover:scale-x-100`}
+                    />
+                  </button>
+                </li>
               </ul>
             </nav>
           </div>
