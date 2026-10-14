@@ -55,3 +55,7 @@ export function searchProducts(query: string): SampleProduct[] {
 export function getProduct(slug: string): SampleProduct | null {
   return PRODUCTS.find((p) => p.slug === slug) ?? null;
 }
+
+export function getProductSlugs(): string[] {
+  return PRODUCTS.map((p) => p.slug);
+}

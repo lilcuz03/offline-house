@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 type DealsCountdownProps = {
   /** ISO string or Date. Defaults to the end of the coming Sunday (local time). */
@@ -143,12 +143,15 @@ export default function DealsCountdown({
   // The default deadline is fixed the first time the component renders, so
   // the countdown can finish and show "ended" instead of rolling forward.
   // It is not displayed until the clock is available on the client.
-  const [defaultEnd] = useState(() => endOfComingSunday().getTime());
+  const [defaultEnd, setDefaultEnd] = useState<number | null>(null);
+  useEffect(() => {
+    setDefaultEnd(endOfComingSunday().getTime());
+  }, []);
   const target = endsAt ? new Date(endsAt).getTime() : defaultEnd;
 
-  const left = mounted ? target - seconds * 1000 : 0;
-  const time = mounted ? parts(left) : null;
-  const expired = mounted && left <= 0;
+  const left = mounted && target !== null ? target - seconds * 1000 : 0;
+  const time = mounted && target !== null ? parts(left) : null;
+  const expired = mounted && target !== null && left <= 0;
 
   const ringText =
     "Marked down this week ✦ Marked down this week ✦ Marked down this week ✦ ";

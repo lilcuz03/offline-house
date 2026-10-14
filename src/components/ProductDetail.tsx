@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "./CartProvider";
-import { useWishlist } from "../components/Wishlist";
+import { useWishlist } from "./WishListProvider";
 
 /* ---------- types ---------- */
 
