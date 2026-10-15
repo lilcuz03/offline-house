@@ -77,7 +77,9 @@ function toProduct(row: ProductRow, categories: CategoryRow[]): CatalogProduct {
 }
 
 /** Products in a collection: "top-sellers", "deals", or any category slug. */
-export async function getCollectionProducts(slug: string): Promise<CatalogProduct[]> {
+export async function getCollectionProducts(
+  slug: string,
+): Promise<CatalogProduct[]> {
   if (!configured) return sample.getCollectionProducts(slug);
   const categories = await getCategories();
   let q = db().from("products").select(COLUMNS).eq("is_active", true);
@@ -161,4 +163,50 @@ export async function getProductSlugs(): Promise<string[]> {
   const slugs = (data ?? []).map((r) => r.slug as string);
   // Next needs at least one static param, even if the shop is still empty
   return slugs.length ? slugs : sample.getProductSlugs().slice(0, 1);
+}
+
+/** Other popular products from the same top-level category, for "You may also like". */
+export async function getRelatedProducts(
+  slug: string,
+  limit = 4,
+): Promise<CatalogProduct[]> {
+  if (!configured) {
+    const current = sample.getProduct(slug);
+    if (!current?.category) return [];
+    return sample
+      .getCollectionProducts(current.category.toLowerCase())
+      .filter((p) => p.slug !== slug)
+      .slice(0, limit);
+  }
+
+  const categories = await getCategories();
+  const { data: current, error: currentError } = await db()
+    .from("products")
+    .select("category_id")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (currentError)
+    throw new Error(`Could not load product: ${currentError.message}`);
+  if (!current?.category_id) return [];
+
+  const own = categories.find((c) => c.id === current.category_id);
+  const top = own?.parent_id
+    ? categories.find((c) => c.id === own.parent_id)
+    : own;
+  if (!top) return [];
+  const ids = [
+    top.id,
+    ...categories.filter((c) => c.parent_id === top.id).map((c) => c.id),
+  ];
+
+  const { data, error } = await db()
+    .from("products")
+    .select(COLUMNS)
+    .eq("is_active", true)
+    .in("category_id", ids)
+    .neq("slug", slug)
+    .order("sales_count", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(`Could not load products: ${error.message}`);
+  return (data as ProductRow[]).map((r) => toProduct(r, categories));
 }

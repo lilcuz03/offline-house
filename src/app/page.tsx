@@ -1,26 +1,34 @@
+import { Suspense } from "react";
 import Hero from "../components/home/hero";
 import CategoryShowcase from "../components/home/categoryshowcase";
-import BestSellers from "@/components/home/bestseller";
+import BestSellersLive from "@/components/home/BestSellersLive";
 import Manifesto from "@/components/home/manifasto";
-import DealsCountdown from "@/components/home/dealscountdown";
+import DealsLive from "@/components/home/DealsLive";
 import Reviews from "@/components/home/reviews";
 import Newsletter from "@/components/home/newsletter";
+
 export default function Home() {
   return (
     <>
-      <main
-        id="main"
-        className="flex-1"
+      <Hero />
+      <CategoryShowcase />
+      <Suspense
+        fallback={
+          <div
+            className="min-h-[32rem]"
+            aria-hidden="true"
+          />
+        }
       >
-        <Hero />
-        <CategoryShowcase />
-        <BestSellers />
-        <Manifesto />
-        <DealsCountdown />
-        <Reviews />
-        <Newsletter />
-        {/* Next sections go here */}
-      </main>
+        <BestSellersLive />
+      </Suspense>
+      <Manifesto />
+      <Suspense fallback={null}>
+        <DealsLive />
+      </Suspense>
+      <Reviews />
+      <Newsletter />
+      {/* Next sections go here */}
     </>
   );
 }

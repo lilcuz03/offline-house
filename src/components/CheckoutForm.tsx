@@ -20,7 +20,7 @@ export type CheckoutPayload = {
   postalCode: string;
   notes: string;
   shippingId: string;
-  items: { id: string; quantity: number }[];
+  items: { id: string; quantity: number; variant: string | null }[];
 };
 
 export type ShippingOption = {
@@ -209,13 +209,23 @@ export default function CheckoutForm({
       await onSubmit({
         ...values,
         shippingId,
-        items: items.map((i) => ({ id: i.id, quantity: i.quantity })),
+        items: items.map((i) => ({
+          id: i.id,
+          quantity: i.quantity,
+          variant: i.variant ?? null,
+        })),
       });
     } catch (err) {
+      // userFacing marks a message that is safe to show, such as "out of stock"
+      const userFacing =
+        err instanceof Error &&
+        (err as Error & { userFacing?: boolean }).userFacing;
       setFormError(
         err instanceof Error && err.message === "not-connected"
           ? "Payment isn't connected yet."
-          : "We couldn't place your order. Please try again.",
+          : userFacing && err instanceof Error
+            ? err.message
+            : "We couldn't place your order. Please try again.",
       );
       setSubmitting(false);
     }

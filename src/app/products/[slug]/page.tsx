@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import ProductReviews from "@/components/ProductReviews";
+import RelatedProducts from "@/components/RelatedProducts";
 import ProductDetail, {
   type ProductDetailData,
 } from "@/components/ProductDetail";
@@ -18,7 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return p ? { title: p.name, description: p.description } : {};
 }
 
-async function ProductContent({ params }: Props) {
+export default async function ProductPage({ params }: Props) {
   const { slug } = await params;
   const p = await getProduct(slug);
   if (!p) notFound();
@@ -37,19 +39,15 @@ async function ProductContent({ params }: Props) {
     inStock: true,
   };
 
-  return <ProductDetail product={product} />;
-}
-
-export default function ProductPage({ params }: Props) {
   return (
-    <Suspense
-      fallback={
-        <div className="mx-auto max-w-7xl px-5 py-20 text-muted sm:px-6" aria-busy="true">
-          Loading product...
-        </div>
-      }
-    >
-      <ProductContent params={params} />
-    </Suspense>
+    <>
+      <ProductDetail product={product} />
+      <Suspense fallback={null}>
+        <ProductReviews productId={p.id} />
+      </Suspense>
+      <Suspense fallback={null}>
+        <RelatedProducts slug={p.slug} />
+      </Suspense>
+    </>
   );
 }

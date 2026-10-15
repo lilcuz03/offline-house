@@ -26,7 +26,7 @@ type Row = {
   images: string[];
 };
 
-type Status = "loading" | "unconfigured" | "signedout" | "forbidden" | "ready";
+type Status = "unconfigured" | "loading" | "signedout" | "forbidden" | "ready";
 
 const field =
   "h-12 w-full rounded-2xl border border-line bg-white/70 px-4 text-[15px] text-ink placeholder:text-muted/60 transition-colors duration-300 hover:border-ink/40 focus:border-ink focus:outline-none";
@@ -195,14 +195,14 @@ export default function AdminProducts() {
       <section className="mx-auto max-w-xl px-5 py-24 text-center sm:px-6">
         <h1 className="font-serif text-4xl font-light text-ink">Admin</h1>
         <p className="mt-4 text-muted">
-          {status === "loading" && "Checking access..."}
           {status === "unconfigured" &&
             "Supabase is not configured. Set the project URL and anon key to manage products."}
+          {status === "loading" && "Checking access..."}
           {status === "signedout" &&
             "Sign in with the owner account to manage products."}
           {status === "forbidden" && "This account does not have admin access."}
         </p>
-        {status !== "loading" && (
+        {(status === "signedout" || status === "forbidden") && (
           <Link
             href="/account"
             className="mt-8 inline-flex h-12 items-center rounded-full bg-ink px-8 text-[15px] text-white transition-colors duration-300 hover:bg-gold hover:text-ink"
@@ -216,9 +216,28 @@ export default function AdminProducts() {
 
   return (
     <section className="mx-auto max-w-5xl px-5 py-12 sm:px-6 sm:py-16">
-      <h1 className="font-serif text-4xl font-light text-ink sm:text-5xl">
-        Products
-      </h1>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <h1 className="font-serif text-4xl font-light text-ink sm:text-5xl">
+          Products
+        </h1>
+        <nav
+          aria-label="Admin"
+          className="flex gap-5 text-sm"
+        >
+          <Link
+            href="/admin/orders"
+            className="text-muted underline underline-offset-4 hover:text-ink"
+          >
+            Orders
+          </Link>
+          <Link
+            href="/admin/reviews"
+            className="text-muted underline underline-offset-4 hover:text-ink"
+          >
+            Review approvals
+          </Link>
+        </nav>
+      </div>
 
       <form
         onSubmit={addProduct}
