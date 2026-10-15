@@ -3,9 +3,9 @@ import { Cormorant_Garamond, Jost } from "next/font/google";
 import { SITE } from "@/lib/categories";
 import "./globals.css";
 import Footer from "@/components/Footer";
+import Header from "@/components/Header";
 import CartProvider from "@/components/CartProvider";
 import WishlistProvider from "@/components/WishListProvider";
-import CookieConsent from "@/components/Cookieconsent";
 
 const jost = Jost({
   variable: "--font-jost",
@@ -41,9 +41,9 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     images: [
       {
-        url: "/brand/logo-full.jpg",
-        width: 1280,
-        height: 853,
+        url: "/brand/logo-full.png",
+        width: 1536,
+        height: 1024,
         alt: "Offline House logo",
       },
     ],
@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Offline House | Disconnect to reconnect",
     description: DESCRIPTION,
-    images: ["/brand/logo-full.jpg"],
+    images: ["/brand/logo-full.png"],
   },
   robots: { index: true, follow: true },
 };
@@ -72,7 +72,7 @@ const jsonLd = {
       name: SITE.name,
       slogan: SITE.tagline,
       url: SITE.url,
-      logo: `${SITE.url}/brand/logo-full.jpg`,
+      logo: `${SITE.url}/brand/logo-full.png`,
     },
     {
       "@type": "WebSite",
@@ -101,10 +101,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <CartProvider>
-          <WishlistProvider>{children}</WishlistProvider>
+          <WishlistProvider>
+            <Header />
+            <main
+              id="main"
+              className="flex-1"
+            >
+              {children}
+            </main>
+          </WishlistProvider>
         </CartProvider>
         <Footer />
-        <CookieConsent />
       </body>
     </html>
   );

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CATEGORIES } from "../lib/categories";
-import { openCookieSettings } from "./Cookieconsent";
 
 type Social = { label: string; href: string };
 
@@ -247,19 +246,6 @@ export default function Footer({
                     <FooterLink href={l.href}>{l.label}</FooterLink>
                   </li>
                 ))}
-                <li>
-                  <button
-                    type="button"
-                    onClick={openCookieSettings}
-                    className="group relative inline-block py-1.5 text-left text-[15px] text-white/70 transition-colors duration-300 hover:text-white"
-                  >
-                    Cookie settings
-                    <span
-                      aria-hidden="true"
-                      className={`absolute inset-x-0 bottom-0.5 h-px origin-left scale-x-0 bg-gold transition-transform duration-500 ${EASE} group-hover:scale-x-100`}
-                    />
-                  </button>
-                </li>
               </ul>
             </nav>
           </div>
@@ -267,10 +253,23 @@ export default function Footer({
 
         {/* Bottom bar */}
         <div className="mt-16 flex flex-wrap items-center justify-between gap-x-8 gap-y-4 border-t border-white/15 py-6 text-sm text-white/55">
-          <p>
-            © {year} Offline House. All prices in South
-            African rand (ZAR).
-          </p>
+          <div className="space-y-1.5">
+            <p>
+              © {year} Offline House. All prices in South African rand (ZAR).
+            </p>
+            <p>
+              Developed by{" "}
+              <a
+                href="https://tafadzwa.site/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-white/80 underline decoration-white/25 underline-offset-4 transition-colors hover:text-gold hover:decoration-gold"
+              >
+                taachii
+              </a>
+              <br />
+            </p>
+          </div>
           <button
             type="button"
             onClick={toTop}

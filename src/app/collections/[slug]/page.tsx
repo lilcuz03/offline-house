@@ -1,115 +1,119 @@
-import { Suspense } from "react";
+import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import CollectionView from "@/components/CollectionView";
-import { ACCENTS, CATEGORIES } from "@/lib/categories";
-import { getCollectionProducts } from "@/lib/catalog";
+import { SITE } from "@/lib/categories";
+import { getCollection, getCollectionSlugs } from "@/lib/collections";
 
 type Props = { params: Promise<{ slug: string }> };
 
-type Resolved = {
-  title: string;
-  tagline: string;
-  accent: string;
-  parentSlug?: string;
-  crumbs: { label: string; href?: string }[];
-  subs: { label: string; href: string }[];
-};
-
-function resolve(slug: string): Resolved | null {
-  if (slug === "top-sellers") {
-    return {
-      title: "Top sellers",
-      tagline: "The pieces people come back for.",
-      accent: ACCENTS.gold,
-      crumbs: [{ label: "Home", href: "/" }, { label: "Top sellers" }],
-      subs: [],
-    };
-  }
-  if (slug === "deals") {
-    return {
-      title: "Deals",
-      tagline: "Marked down for a limited time.",
-      accent: ACCENTS.sale,
-      crumbs: [{ label: "Home", href: "/" }, { label: "Deals" }],
-      subs: [],
-    };
-  }
-  for (const c of CATEGORIES) {
-    if (c.slug === slug) {
-      return {
-        title: c.label,
-        tagline: c.tagline,
-        accent: c.accent,
-        crumbs: [{ label: "Home", href: "/" }, { label: c.label }],
-        subs: c.children.map((k) => ({
-          label: k.label,
-          href: `/collections/${k.slug}`,
-        })),
-      };
-    }
-    const child = c.children.find((k) => k.slug === slug);
-    if (child) {
-      return {
-        title: child.label,
-        tagline: child.hint,
-        accent: c.accent,
-        parentSlug: c.slug,
-        crumbs: [
-          { label: "Home", href: "/" },
-          { label: c.label, href: `/collections/${c.slug}` },
-          { label: child.label },
-        ],
-        subs: [],
-      };
-    }
-  }
-  return null;
+export function generateStaticParams() {
+  return getCollectionSlugs().map((slug) => ({ slug }));
 }
 
-function Loading() {
-  return (
-    <div aria-busy="true" className="mx-auto max-w-7xl px-5 py-20 sm:px-6">
-      <div className="h-16 w-2/3 max-w-xl animate-pulse rounded-2xl bg-stone/40" />
-      <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div key={i} className="aspect-[4/5] animate-pulse rounded-2xl bg-stone/30" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// The runtime part (reading params, querying the database) sits inside a
-// Suspense boundary, which keeps this page valid with Cache Components on.
-async function Content({ params }: Props) {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  const c = resolve(slug);
+  const c = await getCollection(slug);
+  if (!c) return {};
+  return {
+    title: c.title,
+    description: c.tagline,
+    alternates: { canonical: `/collections/${c.slug}` },
+  };
+}
+
+export default async function CollectionPage({ params }: Props) {
+  const { slug } = await params;
+  const c = await getCollection(slug);
   if (!c) notFound();
 
-  // Sub-collections fall back to their parent category until each has products
-  const products = await getCollectionProducts(
-    ...(c.parentSlug ? [slug, c.parentSlug] : [slug]),
-  );
+  // Structured data so search engines understand the page and its products
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: c.breadcrumbs.map((crumb, i) => ({
+          "@type": "ListItem",
+          position: i + 1,
+          name: crumb.label,
+          ...(crumb.href ? { item: `${SITE.url}${crumb.href}` } : {}),
+        })),
+      },
+      {
+        "@type": "CollectionPage",
+        name: c.title,
+        description: c.tagline,
+        url: `${SITE.url}/collections/${c.slug}`,
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: c.products.length,
+          itemListElement: c.products.slice(0, 24).map((p, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            url: `${SITE.url}/products/${p.slug}`,
+            name: p.name,
+          })),
+        },
+      },
+    ],
+  };
 
   return (
-    <>
-      <title>{c.title}</title>
-      <CollectionView
-        title={c.title}
-        tagline={c.tagline}
-        products={products}
-        breadcrumbs={c.crumbs}
-        subcollections={c.subs}
-        accent={c.accent}
+    <main
+      id="main"
+      className="flex-1"
+    >
+      <script
+        type="application/ld+json"
+        // "<" is escaped so product text can never close the script tag
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
-    </>
-  );
-}
 
-export default function CollectionPage({ params }: Props) {
-  return (
-    <Suspense fallback={<Loading />}>
-      <Content params={params} />
-    </Suspense>
+      {c.products.length > 0 ? (
+        <CollectionView
+          title={c.title}
+          tagline={c.tagline}
+          products={c.products}
+          breadcrumbs={c.breadcrumbs}
+          subcollections={c.subcollections}
+          accent={c.accent}
+        />
+      ) : (
+        <section
+          aria-labelledby="empty-heading"
+          className="mx-auto max-w-3xl px-5 py-24 text-center sm:px-6 sm:py-32"
+        >
+          <h1
+            id="empty-heading"
+            className="font-serif text-[clamp(2.5rem,7vw,4.5rem)] font-light leading-[1] text-ink"
+          >
+            {c.title}
+          </h1>
+          <p className="mx-auto mt-5 max-w-[44ch] text-lg leading-relaxed text-muted">
+            Nothing here yet. We only stock what sells, so this shelf fills up
+            as products prove themselves.
+          </p>
+          <div className="mt-10 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/collections/top-sellers"
+              className="inline-flex h-14 items-center rounded-full bg-ink px-8 text-[15px] text-white transition-colors duration-300 hover:bg-gold hover:text-ink"
+            >
+              Shop top sellers
+            </Link>
+            {c.parent && (
+              <Link
+                href={c.parent.href}
+                className="inline-flex h-14 items-center rounded-full border border-line px-8 text-[15px] text-ink transition-colors duration-300 hover:border-ink"
+              >
+                Back to {c.parent.label.toLowerCase()}
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
+    </main>
   );
 }
