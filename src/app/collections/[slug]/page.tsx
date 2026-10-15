@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import CollectionView from "@/components/CollectionView";
 import { SITE } from "@/lib/categories";
 import { getCollection, getCollectionSlugs } from "@/lib/collections";
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function CollectionPage({ params }: Props) {
+async function CollectionContent({ params }: Props) {
   const { slug } = await params;
   const c = await getCollection(slug);
   if (!c) notFound();
@@ -115,5 +116,21 @@ export default async function CollectionPage({ params }: Props) {
         </section>
       )}
     </main>
+  );
+}
+
+export default function CollectionPage({ params }: Props) {
+  return (
+    <Suspense
+      fallback={
+        <main id="main" className="flex-1" aria-busy="true">
+          <div className="mx-auto max-w-7xl px-5 py-20 text-muted sm:px-6">
+            Loading collection...
+          </div>
+        </main>
+      }
+    >
+      <CollectionContent params={params} />
+    </Suspense>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { getSupabase } from "@/lib/supabase";
+import { useCallback, useEffect, useState } from "react";
+import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 
 /*
  * Owner-only product manager. The page checks you are signed in as an admin,
@@ -26,7 +26,7 @@ type Row = {
   images: string[];
 };
 
-type Status = "loading" | "signedout" | "forbidden" | "ready";
+type Status = "loading" | "unconfigured" | "signedout" | "forbidden" | "ready";
 
 const field =
   "h-12 w-full rounded-2xl border border-line bg-white/70 px-4 text-[15px] text-ink placeholder:text-muted/60 transition-colors duration-300 hover:border-ink/40 focus:border-ink focus:outline-none";
@@ -43,8 +43,14 @@ const slugify = (s: string) =>
 const rands = (cents: number) => `R${(cents / 100).toFixed(2)}`;
 
 export default function AdminProducts() {
-  const sb = useMemo(() => getSupabase(), []);
-  const [status, setStatus] = useState<Status>("loading");
+  const [sb] = useState(() =>
+    typeof window === "undefined" || !supabaseConfigured
+      ? null
+      : getSupabase(),
+  );
+  const [status, setStatus] = useState<Status>(
+    supabaseConfigured ? "loading" : "unconfigured",
+  );
   const [categories, setCategories] = useState<Category[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
   const [message, setMessage] = useState("");
@@ -60,6 +66,7 @@ export default function AdminProducts() {
   const [files, setFiles] = useState<File[]>([]);
 
   const load = useCallback(async () => {
+    if (!sb) return;
     const [cats, prods] = await Promise.all([
       sb
         .from("categories")
@@ -79,6 +86,7 @@ export default function AdminProducts() {
   }, [sb]);
 
   useEffect(() => {
+    if (!sb) return;
     let cancelled = false;
     (async () => {
       const { data } = await sb.auth.getUser();
@@ -106,6 +114,7 @@ export default function AdminProducts() {
 
   async function addProduct(e: React.FormEvent) {
     e.preventDefault();
+    if (!sb) return;
     setMessage("");
     const priceCents = Math.round(parseFloat(price) * 100);
     const compareCents = compare ? Math.round(parseFloat(compare) * 100) : null;
@@ -164,6 +173,7 @@ export default function AdminProducts() {
   }
 
   async function toggleActive(r: Row) {
+    if (!sb) return;
     const { error } = await sb
       .from("products")
       .update({ is_active: !r.is_active })
@@ -173,6 +183,7 @@ export default function AdminProducts() {
   }
 
   async function remove(r: Row) {
+    if (!sb) return;
     if (!window.confirm(`Delete "${r.name}"? This cannot be undone.`)) return;
     const { error } = await sb.from("products").delete().eq("id", r.id);
     if (error) return setMessage(error.message);
@@ -185,6 +196,8 @@ export default function AdminProducts() {
         <h1 className="font-serif text-4xl font-light text-ink">Admin</h1>
         <p className="mt-4 text-muted">
           {status === "loading" && "Checking access..."}
+          {status === "unconfigured" &&
+            "Supabase is not configured. Set the project URL and anon key to manage products."}
           {status === "signedout" &&
             "Sign in with the owner account to manage products."}
           {status === "forbidden" && "This account does not have admin access."}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 import ProductDetail, {
   type ProductDetailData,
 } from "@/components/ProductDetail";
@@ -17,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return p ? { title: p.name, description: p.description } : {};
 }
 
-export default async function ProductPage({ params }: Props) {
+async function ProductContent({ params }: Props) {
   const { slug } = await params;
   const p = await getProduct(slug);
   if (!p) notFound();
@@ -37,4 +38,18 @@ export default async function ProductPage({ params }: Props) {
   };
 
   return <ProductDetail product={product} />;
+}
+
+export default function ProductPage({ params }: Props) {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-5 py-20 text-muted sm:px-6" aria-busy="true">
+          Loading product...
+        </div>
+      }
+    >
+      <ProductContent params={params} />
+    </Suspense>
+  );
 }

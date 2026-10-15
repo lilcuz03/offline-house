@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import CollectionView from "@/components/CollectionView";
 import { ACCENTS, CATEGORIES } from "@/lib/categories";
 import { getAllProducts } from "@/lib/catalog";
@@ -10,7 +11,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/collections" },
 };
 
-export default async function CollectionsPage() {
+async function CollectionsContent() {
+  const products = await getAllProducts();
+
   return (
     <main
       id="main"
@@ -19,7 +22,7 @@ export default async function CollectionsPage() {
       <CollectionView
         title="Shop everything"
         tagline="Only the products people keep buying."
-        products={await getAllProducts()}
+        products={products}
         breadcrumbs={[{ label: "Home", href: "/" }, { label: "Shop" }]}
         subcollections={[
           { label: "Top sellers", href: "/collections/top-sellers" },
@@ -32,5 +35,21 @@ export default async function CollectionsPage() {
         accent={ACCENTS.gold}
       />
     </main>
+  );
+}
+
+export default function CollectionsPage() {
+  return (
+    <Suspense
+      fallback={
+        <main id="main" className="flex-1" aria-busy="true">
+          <div className="mx-auto max-w-7xl px-5 py-20 text-muted sm:px-6">
+            Loading products...
+          </div>
+        </main>
+      }
+    >
+      <CollectionsContent />
+    </Suspense>
   );
 }
