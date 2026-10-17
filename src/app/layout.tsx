@@ -5,6 +5,7 @@ import "./globals.css";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import CartProvider from "@/components/CartProvider";
+import { FREE_DELIVERY_THRESHOLD } from "../lib/shipping";
 import WishlistProvider from "@/components/WishListProvider";
 
 const jost = Jost({
@@ -100,7 +101,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <CartProvider>
+        <CartProvider freeShippingThreshold={FREE_DELIVERY_THRESHOLD}>
           <WishlistProvider>
             <Header />
             <main

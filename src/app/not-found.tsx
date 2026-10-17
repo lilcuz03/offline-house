@@ -1,14 +1,6 @@
 import NotFoundView from "@/components/NoteFoundView";
 
+// layout.tsx already provides the header, <main id="main"> and footer.
 export default function NotFound() {
-  return (
-    <>
-      <main
-        id="main"
-        className="flex-1"
-      >
-        <NotFoundView />
-      </main>
-    </>
-  );
+  return <NotFoundView />;
 }

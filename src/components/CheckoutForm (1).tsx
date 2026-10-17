@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useCart } from "./CartProvider";
+import { shippingPriceFor } from "../lib/shipping";
 
 /* ---------- types ---------- */
 
@@ -169,7 +170,7 @@ export default function CheckoutForm({
   const formRef = useRef<HTMLFormElement>(null);
 
   const shipping = shippingOptions.find((s) => s.id === shippingId);
-  const shippingCost = shipping?.price ?? 0;
+  const shippingCost = shipping ? shippingPriceFor(shipping, subtotal) : 0;
   const total = subtotal + shippingCost;
   const count = useMemo(
     () => items.reduce((n, i) => n + i.quantity, 0),
@@ -634,7 +635,9 @@ export default function CheckoutForm({
                       <span className="block text-sm text-muted">{s.eta}</span>
                     </span>
                     <span className="text-[15px] text-ink">
-                      {s.price === 0 ? "Free" : zar.format(s.price)}
+                      {shippingPriceFor(s, subtotal) === 0
+                        ? "Free"
+                        : zar.format(shippingPriceFor(s, subtotal))}
                     </span>
                   </label>
                 );
