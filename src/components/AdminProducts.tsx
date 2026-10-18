@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 
 /*
- * Owner-only product manager. The page checks you are signed in as an admin,
- * but the real protection is the database: Row Level Security only lets an
- * admin change products or upload photos, whatever this page does.
+ * Product manager, shown inside AdminShell (which already checked the visitor
+ * is an admin). The real protection is the database: Row Level Security only
+ * lets an admin change products or upload photos, whatever this page does.
  */
 
 type Category = {
@@ -39,9 +38,9 @@ type Editing = {
   original: string[];
 };
 
-type Status = "unconfigured" | "loading" | "signedout" | "forbidden" | "ready";
-
 const BUCKET = "product-images";
+const PAGE = 25;
+const LOW_STOCK = 5;
 
 const field =
   "h-12 w-full rounded-2xl border border-line bg-white/70 px-4 text-[15px] text-ink placeholder:text-muted/60 transition-colors duration-300 hover:border-ink/40 focus:border-ink focus:outline-none";
@@ -72,12 +71,7 @@ function storagePath(url: string) {
 
 export default function AdminProducts() {
   const [sb] = useState(() =>
-    typeof window === "undefined" || !supabaseConfigured
-      ? null
-      : getSupabase(),
-  );
-  const [status, setStatus] = useState<Status>(
-    supabaseConfigured ? "loading" : "unconfigured",
+    typeof window === "undefined" || !supabaseConfigured ? null : getSupabase(),
   );
   const [categories, setCategories] = useState<Category[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
@@ -99,6 +93,14 @@ export default function AdminProducts() {
   const [fileKey, setFileKey] = useState(0); // resets the file picker
 
   const formRef = useRef<HTMLFormElement>(null);
+
+  // List filters
+  const [search, setSearch] = useState("");
+  const [filterCat, setFilterCat] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStock, setFilterStock] = useState("all");
+  const [sort, setSort] = useState("newest");
+  const [visible, setVisible] = useState(PAGE);
 
   const load = useCallback(async () => {
     if (!sb) return;
@@ -123,31 +125,71 @@ export default function AdminProducts() {
   }, [sb]);
 
   useEffect(() => {
-    if (!sb) return;
-    let cancelled = false;
     (async () => {
-      const { data } = await sb.auth.getUser();
-      if (cancelled) return;
-      if (!data.user) return setStatus("signedout");
-      const { data: profile } = await sb
-        .from("profiles")
-        .select("is_admin")
-        .eq("id", data.user.id)
-        .maybeSingle();
-      if (cancelled) return;
-      if (!profile?.is_admin) return setStatus("forbidden");
-      setStatus("ready");
-      load();
+      await load();
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [sb, load]);
+  }, [load]);
 
   const categoryLabel = (c: Category) => {
     const parent = categories.find((p) => p.id === c.parent_id);
     return parent ? `${parent.name} / ${c.name}` : c.name;
   };
+
+  const parents = categories.filter((c) => !c.parent_id);
+  const childrenOf = (id: string) =>
+    categories.filter((c) => c.parent_id === id);
+  const nameOf = (id: string | null) => {
+    const c = categories.find((x) => x.id === id);
+    return c ? categoryLabel(c) : "No category";
+  };
+
+  const shown = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    // Choosing a top-level category also includes everything inside it
+    const catIds = filterCat
+      ? new Set([
+          filterCat,
+          ...categories
+            .filter((c) => c.parent_id === filterCat)
+            .map((c) => c.id),
+        ])
+      : null;
+    const list = rows.filter((r) => {
+      if (q && !r.name.toLowerCase().includes(q)) return false;
+      if (catIds && (!r.category_id || !catIds.has(r.category_id)))
+        return false;
+      if (filterStatus === "live" && !r.is_active) return false;
+      if (filterStatus === "hidden" && r.is_active) return false;
+      if (filterStock === "out" && r.stock > 0) return false;
+      if (filterStock === "low" && !(r.stock > 0 && r.stock <= LOW_STOCK))
+        return false;
+      if (filterStock === "in" && r.stock <= 0) return false;
+      return true;
+    });
+    const sorted = [...list];
+    if (sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
+    if (sort === "price-low")
+      sorted.sort((a, b) => a.price_cents - b.price_cents);
+    if (sort === "price-high")
+      sorted.sort((a, b) => b.price_cents - a.price_cents);
+    if (sort === "stock-low") sorted.sort((a, b) => a.stock - b.stock);
+    return sorted; // "newest" keeps the order the database returned
+  }, [rows, categories, search, filterCat, filterStatus, filterStock, sort]);
+
+  const filtersOn =
+    search !== "" ||
+    filterCat !== "" ||
+    filterStatus !== "all" ||
+    filterStock !== "all";
+
+  function clearFilters() {
+    setSearch("");
+    setFilterCat("");
+    setFilterStatus("all");
+    setFilterStock("all");
+    setSort("newest");
+    setVisible(PAGE);
+  }
 
   function resetForm() {
     setEditing(null);
@@ -219,7 +261,9 @@ export default function AdminProducts() {
           .from(BUCKET)
           .upload(path, file, { contentType: file.type, upsert: false });
         if (error) throw new Error(`Photo upload failed: ${error.message}`);
-        uploaded.push(sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
+        uploaded.push(
+          sb.storage.from(BUCKET).getPublicUrl(path).data.publicUrl,
+        );
       }
 
       const fields = {
@@ -247,9 +291,7 @@ export default function AdminProducts() {
 
         // Tidy up photos that were taken off the product (best effort)
         const removed = editing.original.filter((u) => !keptImages.includes(u));
-        const paths = removed
-          .map(storagePath)
-          .filter((p): p is string => !!p);
+        const paths = removed.map(storagePath).filter((p): p is string => !!p);
         if (paths.length > 0) await sb.storage.from(BUCKET).remove(paths);
 
         setMessage(`Saved changes to "${name.trim()}".`);
@@ -292,51 +334,11 @@ export default function AdminProducts() {
     load();
   }
 
-  if (status !== "ready") {
-    return (
-      <section className="mx-auto max-w-xl px-5 py-24 text-center sm:px-6">
-        <h1 className="font-serif text-4xl font-light text-ink">Admin</h1>
-        <p className="mt-4 text-muted">
-          {status === "unconfigured" &&
-            "Supabase is not configured. Set the project URL and anon key to manage products."}
-          {status === "loading" && "Checking access..."}
-          {status === "signedout" &&
-            "Sign in with the owner account to manage products."}
-          {status === "forbidden" && "This account does not have admin access."}
-        </p>
-        {(status === "signedout" || status === "forbidden") && (
-          <Link
-            href="/account"
-            className="mt-8 inline-flex h-12 items-center rounded-full bg-ink px-8 text-[15px] text-white transition-colors duration-300 hover:bg-gold hover:text-ink"
-          >
-            Go to sign in
-          </Link>
-        )}
-      </section>
-    );
-  }
-
   return (
-    <section className="mx-auto max-w-5xl px-5 py-12 sm:px-6 sm:py-16">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <h1 className="font-serif text-4xl font-light text-ink sm:text-5xl">
-          Products
-        </h1>
-        <nav aria-label="Admin" className="flex gap-5 text-sm">
-          <Link
-            href="/admin/orders"
-            className="text-muted underline underline-offset-4 hover:text-ink"
-          >
-            Orders
-          </Link>
-          <Link
-            href="/admin/reviews"
-            className="text-muted underline underline-offset-4 hover:text-ink"
-          >
-            Review approvals
-          </Link>
-        </nav>
-      </div>
+    <section className="px-5 py-10 sm:py-16 md:px-0">
+      <h1 className="font-serif text-4xl font-light text-ink sm:text-5xl">
+        Products
+      </h1>
 
       <form
         ref={formRef}
@@ -396,7 +398,10 @@ export default function AdminProducts() {
           >
             <option value="">Choose a category</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.id}>
+              <option
+                key={c.id}
+                value={c.id}
+              >
                 {categoryLabel(c)}
               </option>
             ))}
@@ -451,7 +456,10 @@ export default function AdminProducts() {
             </p>
             <ul className="mt-2 flex flex-wrap gap-3">
               {keptImages.map((url, i) => (
-                <li key={url} className="w-28">
+                <li
+                  key={url}
+                  className="w-28"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={url}
@@ -487,9 +495,7 @@ export default function AdminProducts() {
         )}
 
         <label className="text-sm text-muted sm:col-span-2">
-          {editing
-            ? "Add more photos"
-            : "Photos (first one is the main photo)"}
+          {editing ? "Add more photos" : "Photos (first one is the main photo)"}
           <input
             key={fileKey}
             type="file"
@@ -509,18 +515,119 @@ export default function AdminProducts() {
             {busy ? "Saving..." : editing ? "Save changes" : "Add product"}
           </button>
           {message && (
-            <p role="status" className="text-[15px] text-muted">
+            <p
+              role="status"
+              className="text-[15px] text-muted"
+            >
               {message}
             </p>
           )}
         </div>
       </form>
 
-      <ul className="mt-10 divide-y divide-line rounded-3xl border border-line bg-white/50">
-        {rows.length === 0 && (
-          <li className="p-6 text-muted">No products yet.</li>
+      <div className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <input
+          className={`${field} sm:col-span-2 lg:col-span-4`}
+          type="search"
+          placeholder="Search products by name"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setVisible(PAGE);
+          }}
+        />
+        <select
+          className={field}
+          aria-label="Category"
+          value={filterCat}
+          onChange={(e) => {
+            setFilterCat(e.target.value);
+            setVisible(PAGE);
+          }}
+        >
+          <option value="">All categories</option>
+          {parents.map((p) => (
+            <optgroup
+              key={p.id}
+              label={p.name}
+            >
+              <option value={p.id}>All {p.name}</option>
+              {childrenOf(p.id).map((c) => (
+                <option
+                  key={c.id}
+                  value={c.id}
+                >
+                  {c.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <select
+          className={field}
+          aria-label="Status"
+          value={filterStatus}
+          onChange={(e) => {
+            setFilterStatus(e.target.value);
+            setVisible(PAGE);
+          }}
+        >
+          <option value="all">Live and hidden</option>
+          <option value="live">Live only</option>
+          <option value="hidden">Hidden only</option>
+        </select>
+        <select
+          className={field}
+          aria-label="Stock"
+          value={filterStock}
+          onChange={(e) => {
+            setFilterStock(e.target.value);
+            setVisible(PAGE);
+          }}
+        >
+          <option value="all">Any stock level</option>
+          <option value="in">In stock</option>
+          <option value="low">{`Low stock (${LOW_STOCK} or fewer)`}</option>
+          <option value="out">Out of stock</option>
+        </select>
+        <select
+          className={field}
+          aria-label="Sort"
+          value={sort}
+          onChange={(e) => setSort(e.target.value)}
+        >
+          <option value="newest">Newest first</option>
+          <option value="name">Name A to Z</option>
+          <option value="price-low">Price: low to high</option>
+          <option value="price-high">Price: high to low</option>
+          <option value="stock-low">Stock: lowest first</option>
+        </select>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-muted">
+        <p role="status">
+          Showing {Math.min(visible, shown.length)} of {shown.length}
+          {filtersOn ? ` (${rows.length} in total)` : ""}
+        </p>
+        {filtersOn && (
+          <button
+            onClick={clearFilters}
+            className="underline underline-offset-4 hover:text-ink"
+          >
+            Clear filters
+          </button>
         )}
-        {rows.map((r) => {
+      </div>
+
+      <ul className="mt-3 divide-y divide-line rounded-3xl border border-line bg-white/50">
+        {shown.length === 0 && (
+          <li className="p-6 text-muted">
+            {rows.length === 0
+              ? "No products yet."
+              : "No products match these filters."}
+          </li>
+        )}
+        {shown.slice(0, visible).map((r) => {
           const onSale =
             r.compare_at_cents !== null && r.compare_at_cents > r.price_cents;
           return (
@@ -530,10 +637,23 @@ export default function AdminProducts() {
                 editing?.id === r.id ? "bg-gold/10" : ""
               }`}
             >
+              {r.images[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={r.images[0]}
+                  alt=""
+                  className="size-12 shrink-0 rounded-xl object-cover"
+                />
+              ) : (
+                <div
+                  aria-hidden
+                  className="size-12 shrink-0 rounded-xl bg-line"
+                />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[15px] text-ink">{r.name}</p>
                 <p className="text-sm text-muted">
-                  {rands(r.price_cents)}
+                  {nameOf(r.category_id)} · {rands(r.price_cents)}
                   {onSale && (
                     <>
                       {" "}
@@ -543,13 +663,18 @@ export default function AdminProducts() {
                       <span className="text-sale">on sale</span>
                     </>
                   )}{" "}
-                  · {r.stock === 0 ? (
+                  ·{" "}
+                  {r.stock === 0 ? (
                     <span className="text-sale">out of stock</span>
                   ) : (
                     `${r.stock} in stock`
                   )}{" "}
-                  · {r.images.length} photo{r.images.length === 1 ? "" : "s"}{" "}
-                  · {r.is_active ? "live" : <span className="text-sale">hidden</span>}
+                  · {r.images.length} photo{r.images.length === 1 ? "" : "s"} ·{" "}
+                  {r.is_active ? (
+                    "live"
+                  ) : (
+                    <span className="text-sale">hidden</span>
+                  )}
                 </p>
               </div>
               <button
@@ -574,6 +699,15 @@ export default function AdminProducts() {
           );
         })}
       </ul>
+
+      {visible < shown.length && (
+        <button
+          onClick={() => setVisible((v) => v + PAGE)}
+          className="mx-auto mt-6 flex h-12 items-center rounded-full border border-line px-8 text-[15px] text-ink transition-colors duration-300 hover:border-ink"
+        >
+          Show more
+        </button>
+      )}
     </section>
   );
 }
