@@ -276,7 +276,7 @@ export default function AdminDashboard() {
       ? Math.round((stats.itemsWithCost / stats.itemsSold) * 100)
       : 100;
 
-  const tile = "rounded-3xl border border-line bg-white/50 p-5";
+  const tile = "rounded-3xl border border-line bg-white/50 p-4 sm:p-5";
 
   return (
     <section className="px-5 py-10 sm:py-16 md:px-0">
@@ -287,14 +287,14 @@ export default function AdminDashboard() {
         <div
           role="group"
           aria-label="Time range"
-          className="flex gap-1 rounded-full border border-line p-1"
+          className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-line p-1"
         >
           {RANGES.map((r) => (
             <button
               key={r.id}
               onClick={() => pickRange(r.id)}
               aria-pressed={range === r.id}
-              className={`h-9 rounded-full px-4 text-sm transition-colors duration-300 ${
+              className={`h-9 shrink-0 whitespace-nowrap rounded-full px-3 text-sm transition-colors duration-300 sm:px-4 ${
                 range === r.id
                   ? "bg-ink text-white"
                   : "text-muted hover:text-ink"
@@ -316,11 +316,11 @@ export default function AdminDashboard() {
       )}
 
       <div
-        className={`mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 ${loading ? "opacity-50" : ""}`}
+        className={`mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 ${loading ? "opacity-50" : ""}`}
       >
         <div className={tile}>
           <p className="text-sm text-muted">Revenue</p>
-          <p className="mt-2 font-serif text-3xl text-ink">
+          <p className="mt-2 font-serif text-2xl text-ink sm:text-3xl">
             {money(stats.revenue)}
           </p>
           <p className="mt-1 text-xs text-muted">
@@ -330,7 +330,7 @@ export default function AdminDashboard() {
         <div className={tile}>
           <p className="text-sm text-muted">Product profit</p>
           <p
-            className={`mt-2 font-serif text-3xl ${stats.profit < 0 ? "text-sale" : "text-ink"}`}
+            className={`mt-2 font-serif text-2xl sm:text-3xl ${stats.profit < 0 ? "text-sale" : "text-ink"}`}
           >
             {money(stats.profit)}
           </p>
@@ -342,14 +342,16 @@ export default function AdminDashboard() {
         </div>
         <div className={tile}>
           <p className="text-sm text-muted">Orders</p>
-          <p className="mt-2 font-serif text-3xl text-ink">{stats.count}</p>
+          <p className="mt-2 font-serif text-2xl text-ink sm:text-3xl">
+            {stats.count}
+          </p>
           <p className="mt-1 text-xs text-muted">
             {stats.itemsSold} items sold
           </p>
         </div>
         <div className={tile}>
           <p className="text-sm text-muted">Average order</p>
-          <p className="mt-2 font-serif text-3xl text-ink">
+          <p className="mt-2 font-serif text-2xl text-ink sm:text-3xl">
             {stats.count ? money(stats.avg) : "-"}
           </p>
           <p className="mt-1 text-xs text-muted">Revenue per order</p>

@@ -2,12 +2,21 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { SHIPPING_OPTIONS, shippingPriceFor } from "@/lib/shipping";
 import { buildPayment, getPayfastConfig } from "@/lib/payfast";
+import { createStitchPayment, getStitchConfig } from "@/lib/stitch";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PROVINCES = [
-  "Eastern Cape", "Free State", "Gauteng", "KwaZulu-Natal", "Limpopo",
-  "Mpumalanga", "Northern Cape", "North West", "Western Cape",
+  "Eastern Cape",
+  "Free State",
+  "Gauteng",
+  "KwaZulu-Natal",
+  "Limpopo",
+  "Mpumalanga",
+  "Northern Cape",
+  "North West",
+  "Western Cape",
 ];
 
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
@@ -47,15 +56,24 @@ export async function POST(request: Request) {
   const postalCode = str(body.postalCode);
   const notes = str(body.notes);
   const shippingId = str(body.shippingId);
+  const method: "payfast" | "stitch" =
+    body.paymentMethod === "stitch" ? "stitch" : "payfast";
 
   const detailsOk =
-    EMAIL_RE.test(email) && email.length <= 254 &&
+    EMAIL_RE.test(email) &&
+    email.length <= 254 &&
     /^\+?\d{9,15}$/.test(phone) &&
-    firstName && firstName.length <= 80 &&
-    lastName && lastName.length <= 80 &&
-    address1 && address1.length <= 200 && address2.length <= 200 &&
-    suburb && suburb.length <= 100 &&
-    city && city.length <= 100 &&
+    firstName &&
+    firstName.length <= 80 &&
+    lastName &&
+    lastName.length <= 80 &&
+    address1 &&
+    address1.length <= 200 &&
+    address2.length <= 200 &&
+    suburb &&
+    suburb.length <= 100 &&
+    city &&
+    city.length <= 100 &&
     PROVINCES.includes(province) &&
     /^\d{4}$/.test(postalCode) &&
     notes.length <= 500;
@@ -65,7 +83,11 @@ export async function POST(request: Request) {
   if (!shipping) return fail("Choose a delivery method.");
 
   /* ---- 2. Validate the bag ---- */
-  if (!Array.isArray(body.items) || body.items.length === 0 || body.items.length > 50) {
+  if (
+    !Array.isArray(body.items) ||
+    body.items.length === 0 ||
+    body.items.length > 50
+  ) {
     return fail("Your bag is empty.");
   }
   const lines: Line[] = [];
@@ -75,7 +97,12 @@ export async function POST(request: Request) {
     // Cart ids look like "<product uuid>" or "<product uuid>:<variant slug>"
     const productId = str(it.id).split(":")[0];
     const quantity = Number(it.quantity);
-    if (!UUID_RE.test(productId) || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+    if (
+      !UUID_RE.test(productId) ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 99
+    ) {
       return fail("Invalid bag.");
     }
     const variant = str(it.variant).slice(0, 100) || null;
@@ -84,9 +111,12 @@ export async function POST(request: Request) {
 
   /* ---- 3. Servers, keys and money ---- */
   const db = getSupabaseAdmin();
-  const pay = getPayfastConfig();
-  if (!db || !pay) {
-    console.error("Checkout: Supabase or PayFast environment variables are missing.");
+  const pay = method === "payfast" ? getPayfastConfig() : null;
+  const stitch = method === "stitch" ? getStitchConfig() : null;
+  if (!db || (method === "payfast" ? !pay : !stitch)) {
+    console.error(
+      `Checkout: Supabase or ${method} environment variables are missing.`,
+    );
     return fail("Checkout is not available right now.", 500);
   }
 
@@ -108,7 +138,8 @@ export async function POST(request: Request) {
   }
 
   const wanted = new Map<string, number>();
-  for (const l of lines) wanted.set(l.productId, (wanted.get(l.productId) ?? 0) + l.quantity);
+  for (const l of lines)
+    wanted.set(l.productId, (wanted.get(l.productId) ?? 0) + l.quantity);
   for (const [id, qty] of wanted) {
     const p = products.get(id)!;
     if (qty > p.stock) {
@@ -149,7 +180,9 @@ export async function POST(request: Request) {
       shipping_cents: shippingCents,
       subtotal_cents: subtotalCents,
       total_cents: totalCents,
-      payment_provider: "payfast",
+      payment_provider: method,
+      // Sandbox payments are test orders and stay out of the sales reports
+      is_test: method === "payfast" ? pay!.sandbox : stitch!.test,
     })
     .select("id, number, access_token")
     .single();
@@ -160,28 +193,88 @@ export async function POST(request: Request) {
   }
   const saved = order as { id: string; number: string; access_token: string };
 
-  const { error: itemsError } = await db.from("order_items").insert(
-    lines.map((l) => {
-      const p = products.get(l.productId)!;
-      return {
-        order_id: saved.id,
-        product_id: l.productId,
-        name: p.name,
-        variant: l.variant,
-        image: p.images?.[0] ?? null,
-        unit_price_cents: p.price_cents,
-        quantity: l.quantity,
-      };
-    }),
-  );
-  if (itemsError) {
-    console.error("Checkout: order items insert failed:", itemsError.message);
+  const { data: insertedItems, error: itemsError } = await db
+    .from("order_items")
+    .insert(
+      lines.map((l) => {
+        const p = products.get(l.productId)!;
+        return {
+          order_id: saved.id,
+          product_id: l.productId,
+          name: p.name,
+          variant: l.variant,
+          image: p.images?.[0] ?? null,
+          unit_price_cents: p.price_cents,
+          quantity: l.quantity,
+        };
+      }),
+    )
+    .select("id, product_id");
+  if (itemsError || !insertedItems) {
+    console.error("Checkout: order items insert failed:", itemsError?.message);
     await db.from("orders").delete().eq("id", saved.id); // leave nothing half-made
     return fail("Could not place your order.", 500);
   }
 
-  /* ---- 5. Hand over to PayFast ---- */
-  const payment = buildPayment(pay, {
+  // Remember what each product cost us at the moment of sale, so profit
+  // reports stay correct even if the cost price changes later. This is kept
+  // in an admin-only table and never blocks the order if it fails.
+  const { data: costRows } = await db
+    .from("product_costs")
+    .select("product_id, cost_cents")
+    .in("product_id", ids);
+  const costs = new Map(
+    ((costRows ?? []) as { product_id: string; cost_cents: number }[]).map(
+      (c) => [c.product_id, c.cost_cents],
+    ),
+  );
+  const snapshots = (insertedItems as { id: string; product_id: string }[])
+    .filter((i) => costs.has(i.product_id))
+    .map((i) => ({
+      order_item_id: i.id,
+      unit_cost_cents: costs.get(i.product_id)!,
+    }));
+  if (snapshots.length > 0) {
+    const { error: costError } = await db
+      .from("order_item_costs")
+      .insert(snapshots);
+    if (costError)
+      console.error("Checkout: cost snapshot failed:", costError.message);
+  }
+
+  /* ---- 5a. Hand over to Stitch ---- */
+  if (method === "stitch") {
+    try {
+      const created = await createStitchPayment(stitch!, {
+        orderNumber: saved.number,
+        totalCents,
+        orderToken: saved.access_token,
+        firstName,
+        lastName,
+        email,
+        phone,
+      });
+      // Remember Stitch's id for this payment, so we can check on it later
+      await db
+        .from("orders")
+        .update({ payment_reference: created.id })
+        .eq("id", saved.id);
+      return NextResponse.json({
+        orderNumber: saved.number,
+        redirectUrl: created.url,
+      });
+    } catch (err) {
+      console.error("Checkout: Stitch payment failed to start:", err);
+      await db.from("orders").delete().eq("id", saved.id); // leave nothing half-made
+      return fail(
+        "We couldn't start that payment. Please try again or choose another way to pay.",
+        502,
+      );
+    }
+  }
+
+  /* ---- 5b. Hand over to PayFast ---- */
+  const payment = buildPayment(pay!, {
     number: saved.number,
     token: saved.access_token,
     totalCents,

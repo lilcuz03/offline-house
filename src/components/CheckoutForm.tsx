@@ -4,7 +4,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import { useCart } from "./CartProvider";
-import { shippingPriceFor } from "../lib/shipping";
 
 /* ---------- types ---------- */
 
@@ -21,6 +20,8 @@ export type CheckoutPayload = {
   postalCode: string;
   notes: string;
   shippingId: string;
+  /** Which payment service the customer chose. Defaults to PayFast. */
+  paymentMethod?: "payfast" | "stitch";
   items: { id: string; quantity: number; variant: string | null }[];
 };
 
@@ -32,10 +33,18 @@ export type ShippingOption = {
   price: number;
 };
 
+export type PaymentOption = {
+  id: "payfast" | "stitch";
+  label: string;
+  hint: string;
+};
+
 type CheckoutFormProps = {
   /** Create the order and send the customer to payment. Throw to show an error. */
   onSubmit?: (payload: CheckoutPayload) => Promise<void>;
   shippingOptions?: ShippingOption[];
+  /** Ways to pay. With fewer than two, the choice is not shown. */
+  paymentOptions?: PaymentOption[];
 };
 
 /* PLACEHOLDER rates. Replace with your real delivery options and prices. */
@@ -74,7 +83,7 @@ const zar = new Intl.NumberFormat("en-ZA", {
   maximumFractionDigits: 0,
 });
 
-type Fields = Omit<CheckoutPayload, "items" | "shippingId">;
+type Fields = Omit<CheckoutPayload, "items" | "shippingId" | "paymentMethod">;
 type Errors = Partial<Record<keyof Fields, string>>;
 
 const EMPTY: Fields = {
@@ -157,6 +166,7 @@ const inputClass = (error?: string) =>
 
 export default function CheckoutForm({
   onSubmit,
+  paymentOptions = [],
   shippingOptions = DEFAULT_SHIPPING,
 }: CheckoutFormProps) {
   const { items, subtotal, hydrated } = useCart();
@@ -164,13 +174,16 @@ export default function CheckoutForm({
   const [values, setValues] = useState<Fields>(EMPTY);
   const [errors, setErrors] = useState<Errors>({});
   const [shippingId, setShippingId] = useState(shippingOptions[0]?.id ?? "");
+  const [paymentMethod, setPaymentMethod] = useState<"payfast" | "stitch">(
+    paymentOptions[0]?.id ?? "payfast",
+  );
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState("");
   const [summaryOpen, setSummaryOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const shipping = shippingOptions.find((s) => s.id === shippingId);
-  const shippingCost = shipping ? shippingPriceFor(shipping, subtotal) : 0;
+  const shippingCost = shipping?.price ?? 0;
   const total = subtotal + shippingCost;
   const count = useMemo(
     () => items.reduce((n, i) => n + i.quantity, 0),
@@ -210,6 +223,7 @@ export default function CheckoutForm({
       await onSubmit({
         ...values,
         shippingId,
+        paymentMethod,
         items: items.map((i) => ({
           id: i.id,
           quantity: i.quantity,
@@ -635,15 +649,65 @@ export default function CheckoutForm({
                       <span className="block text-sm text-muted">{s.eta}</span>
                     </span>
                     <span className="text-[15px] text-ink">
-                      {shippingPriceFor(s, subtotal) === 0
-                        ? "Free"
-                        : zar.format(shippingPriceFor(s, subtotal))}
+                      {s.price === 0 ? "Free" : zar.format(s.price)}
                     </span>
                   </label>
                 );
               })}
             </div>
           </fieldset>
+
+          {paymentOptions.length > 1 && (
+            <fieldset>
+              <legend className="font-serif text-3xl font-light text-ink">
+                How would you like to pay?
+              </legend>
+              <div className="mt-5 space-y-3">
+                {paymentOptions.map((o) => {
+                  const on = paymentMethod === o.id;
+                  return (
+                    <label
+                      key={o.id}
+                      className={`flex cursor-pointer items-center gap-4 rounded-2xl border px-5 py-4 transition-all duration-300 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-gold-deep ${
+                        on
+                          ? "border-ink bg-white"
+                          : "border-line bg-white/50 hover:border-ink/40"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        value={o.id}
+                        checked={on}
+                        onChange={() => setPaymentMethod(o.id)}
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={`grid h-5 w-5 shrink-0 place-items-center rounded-full border transition-colors duration-300 ${
+                          on ? "border-ink" : "border-ink/30"
+                        }`}
+                      >
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full bg-ink transition-transform duration-300 ${
+                            on ? "scale-100" : "scale-0"
+                          }`}
+                        />
+                      </span>
+                      <span className="flex-1 leading-tight">
+                        <span className="block text-[15px] text-ink">
+                          {o.label}
+                        </span>
+                        <span className="block text-sm text-muted">
+                          {o.hint}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </fieldset>
+          )}
 
           <div>
             {formError && (

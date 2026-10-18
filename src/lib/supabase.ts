@@ -11,13 +11,18 @@ export const supabaseConfigured = Boolean(url && anonKey);
  * It can only do what the Row Level Security rules allow, which for visitors
  * means reading products and categories.
  */
+let client: SupabaseClient | null = null;
+
 export function getSupabase(): SupabaseClient {
+  if (client) return client;
   if (!url || !anonKey) {
     throw new Error(
       "Supabase is not configured. Copy .env.example to .env.local and fill in your project URL and anon key.",
     );
   }
-  return createClient(url, anonKey, {
+  // One shared client, so the browser doesn't hold several sign-in sessions
+  client = createClient(url, anonKey, {
     auth: { persistSession: true, autoRefreshToken: true },
   });
+  return client;
 }

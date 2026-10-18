@@ -711,7 +711,7 @@ export default function AdminProducts() {
           return (
             <li
               key={r.id}
-              className={`flex flex-wrap items-center gap-x-6 gap-y-2 p-4 sm:px-6 ${
+              className={`grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-4 gap-y-3 p-4 sm:flex sm:flex-wrap sm:gap-x-5 sm:gap-y-2 sm:px-6 ${
                 editing?.id === r.id ? "bg-gold/10" : ""
               }`}
             >
@@ -770,24 +770,26 @@ export default function AdminProducts() {
                   )}
                 </p>
               </div>
-              <button
-                onClick={() => startEdit(r)}
-                className="h-10 rounded-full bg-ink px-5 text-sm text-white transition-colors duration-300 hover:bg-gold hover:text-ink"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => toggleActive(r)}
-                className="h-10 rounded-full border border-line px-4 text-sm text-ink transition-colors duration-300 hover:border-ink"
-              >
-                {r.is_active ? "Hide" : "Show"}
-              </button>
-              <button
-                onClick={() => remove(r)}
-                className="h-10 rounded-full border border-line px-4 text-sm text-sale transition-colors duration-300 hover:border-sale"
-              >
-                Delete
-              </button>
+              <div className="col-span-2 flex flex-wrap gap-2 sm:contents">
+                <button
+                  onClick={() => startEdit(r)}
+                  className="h-10 rounded-full bg-ink px-5 text-sm text-white transition-colors duration-300 hover:bg-gold hover:text-ink"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={() => toggleActive(r)}
+                  className="h-10 rounded-full border border-line px-4 text-sm text-ink transition-colors duration-300 hover:border-ink"
+                >
+                  {r.is_active ? "Hide" : "Show"}
+                </button>
+                <button
+                  onClick={() => remove(r)}
+                  className="h-10 rounded-full border border-line px-4 text-sm text-sale transition-colors duration-300 hover:border-sale"
+                >
+                  Delete
+                </button>
+              </div>
             </li>
           );
         })}

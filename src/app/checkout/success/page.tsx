@@ -1,12 +1,18 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import OrderConfirmation, { type ConfirmedOrder } from "@/components/OrderConfirmation";
+import OrderConfirmation, {
+  type ConfirmedOrder,
+} from "@/components/OrderConfirmation";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { confirmStitchOrder, getStitchConfig } from "@/lib/stitch";
 import { SHIPPING_OPTIONS } from "@/lib/shipping";
 
 type Props = {
-  searchParams: Promise<{ order?: string | string[]; token?: string | string[] }>;
+  searchParams: Promise<{
+    order?: string | string[];
+    token?: string | string[];
+  }>;
 };
 
 type ItemRow = {
@@ -19,6 +25,9 @@ type ItemRow = {
 };
 
 type OrderRow = {
+  id: string;
+  payment_provider: string | null;
+  payment_reference: string | null;
   number: string;
   email: string;
   first_name: string;
@@ -37,7 +46,8 @@ type OrderRow = {
   order_items: ItemRow[];
 };
 
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
+const one = (v: string | string[] | undefined) =>
+  (Array.isArray(v) ? v[0] : v) ?? "";
 
 async function Content({ searchParams }: Props) {
   const sp = await searchParams;
@@ -52,7 +62,7 @@ async function Content({ searchParams }: Props) {
   const { data } = await db
     .from("orders")
     .select(
-      "number, email, first_name, last_name, address1, address2, suburb, city, province, postal_code, subtotal_cents, shipping_cents, total_cents, shipping_method, payment_status, order_items(id, name, variant, image, unit_price_cents, quantity)",
+      "id, payment_provider, payment_reference, number, email, first_name, last_name, address1, address2, suburb, city, province, postal_code, subtotal_cents, shipping_cents, total_cents, shipping_method, payment_status, order_items(id, name, variant, image, unit_price_cents, quantity)",
     )
     .eq("number", number)
     .eq("access_token", token)
@@ -61,15 +71,39 @@ async function Content({ searchParams }: Props) {
   if (!data) notFound();
   const o = data as unknown as OrderRow;
 
+  // A Stitch customer can arrive before the webhook does, so ask Stitch what
+  // happened. We never trust the address-bar parameters for this.
+  if (o.payment_status !== "paid" && o.payment_provider === "stitch") {
+    const stitch = getStitchConfig();
+    if (stitch) {
+      try {
+        const result = await confirmStitchOrder(db, stitch, {
+          id: o.id,
+          total_cents: o.total_cents,
+          payment_status: o.payment_status,
+          payment_reference: o.payment_reference,
+        });
+        o.payment_status = result;
+      } catch (err) {
+        console.error("Success page: Stitch check failed:", err);
+      }
+    }
+  }
+
   // PayFast confirms payments in the background, so the customer can arrive
   // a moment before the order is marked paid.
   if (o.payment_status !== "paid") {
     return (
       <section className="mx-auto max-w-xl px-5 py-28 text-center">
-        <meta httpEquiv="refresh" content="6" />
+        <meta
+          httpEquiv="refresh"
+          content="6"
+        />
         <title>Confirming your payment</title>
         <h1 className="font-serif text-5xl font-light text-ink">
-          {o.payment_status === "failed" ? "Payment didn't go through." : "Confirming your payment."}
+          {o.payment_status === "failed"
+            ? "Payment didn't go through."
+            : "Confirming your payment."}
         </h1>
         <p className="mt-4 text-muted">
           {o.payment_status === "failed"
@@ -77,7 +111,11 @@ async function Content({ searchParams }: Props) {
             : "This usually takes a few seconds. This page will refresh by itself."}
         </p>
         <Link
-          href={o.payment_status === "failed" ? "/checkout" : `/checkout/success?order=${encodeURIComponent(number)}&token=${token}`}
+          href={
+            o.payment_status === "failed"
+              ? "/checkout"
+              : `/checkout/success?order=${encodeURIComponent(number)}&token=${token}`
+          }
           className="mt-8 inline-flex h-14 items-center rounded-full bg-ink px-9 text-[15px] text-white transition-colors hover:bg-gold hover:text-ink"
         >
           {o.payment_status === "failed" ? "Back to checkout" : "Check again"}
