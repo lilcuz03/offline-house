@@ -46,7 +46,7 @@ const LOW_STOCK = 5;
 
 const money = (cents: number) => {
   const r = cents / 100;
-  return `R${r.toLocaleString("en-ZA", {
+  return `R${r.toLocaleString("en-GB", {
     minimumFractionDigits: Math.abs(r) < 1000 ? 2 : 0,
     maximumFractionDigits: Math.abs(r) < 1000 ? 2 : 0,
   })}`;

@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { sendOrderEmails } from "@/lib/order-emails";
 
 /**
  * Stitch helpers (server only). Stitch lets customers pay by bank (EFT),
@@ -254,6 +255,7 @@ export async function confirmStitchOrder(
       p_reference: order.payment_reference,
     });
     if (error) throw new Error(`fulfil_order failed: ${error.message}`);
+    await sendOrderEmails(db, order.id);
     return "paid";
   }
 
