@@ -14,6 +14,7 @@ import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 type Status = "unconfigured" | "loading" | "signedout" | "forbidden" | "ready";
 
 const NAV = [
+  { href: "/admin/dashboard", label: "Dashboard" },
   { href: "/admin", label: "Products" },
   { href: "/admin/import", label: "Import" },
   { href: "/admin/orders", label: "Orders" },
