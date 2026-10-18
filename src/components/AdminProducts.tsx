@@ -75,6 +75,8 @@ export default function AdminProducts() {
   );
   const [categories, setCategories] = useState<Category[]>([]);
   const [rows, setRows] = useState<Row[]>([]);
+  // Cost prices by product id. Admin-only table, never shown to customers.
+  const [costs, setCosts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -83,6 +85,7 @@ export default function AdminProducts() {
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [compare, setCompare] = useState("");
+  const [cost, setCost] = useState("");
   const [stock, setStock] = useState("10");
   const [categoryId, setCategoryId] = useState("");
   const [description, setDescription] = useState("");
@@ -104,7 +107,7 @@ export default function AdminProducts() {
 
   const load = useCallback(async () => {
     if (!sb) return;
-    const [cats, prods] = await Promise.all([
+    const [cats, prods, costRows] = await Promise.all([
       sb
         .from("categories")
         .select("id, slug, name, parent_id")
@@ -115,6 +118,7 @@ export default function AdminProducts() {
           "id, slug, name, description, price_cents, compare_at_cents, stock, category_id, is_best_seller, is_active, images",
         )
         .order("created_at", { ascending: false }),
+      sb.from("product_costs").select("product_id, cost_cents"),
     ]);
     if (cats.error || prods.error) {
       setMessage(cats.error?.message ?? prods.error?.message ?? "Load failed");
@@ -122,6 +126,14 @@ export default function AdminProducts() {
     }
     setCategories(cats.data as Category[]);
     setRows(prods.data as Row[]);
+    // If the cost table is missing the list still works, costs just stay empty
+    setCosts(
+      Object.fromEntries(
+        (
+          (costRows.data ?? []) as { product_id: string; cost_cents: number }[]
+        ).map((c) => [c.product_id, c.cost_cents]),
+      ),
+    );
   }, [sb]);
 
   useEffect(() => {
@@ -191,11 +203,22 @@ export default function AdminProducts() {
     setVisible(PAGE);
   }
 
+  // Live profit preview under the price fields
+  const sellingCents = toCents(price);
+  const costCents = cost.trim() ? toCents(cost) : NaN;
+  const profit =
+    Number.isFinite(sellingCents) && Number.isFinite(costCents)
+      ? sellingCents - costCents
+      : null;
+  const margin =
+    profit !== null && sellingCents > 0 ? (profit / sellingCents) * 100 : null;
+
   function resetForm() {
     setEditing(null);
     setName("");
     setPrice("");
     setCompare("");
+    setCost("");
     setStock("10");
     setCategoryId("");
     setDescription("");
@@ -211,6 +234,7 @@ export default function AdminProducts() {
     setName(r.name);
     setPrice((r.price_cents / 100).toFixed(2));
     setCompare(r.compare_at_cents ? (r.compare_at_cents / 100).toFixed(2) : "");
+    setCost(costs[r.id] != null ? (costs[r.id] / 100).toFixed(2) : "");
     setStock(String(r.stock));
     setCategoryId(r.category_id ?? "");
     setDescription(r.description ?? "");
@@ -227,6 +251,23 @@ export default function AdminProducts() {
     setKeptImages((imgs) => [url, ...imgs.filter((u) => u !== url)]);
   }
 
+  // Cost lives in its own admin-only table: set it, or clear it when emptied
+  async function saveCost(productId: string, costCents: number | null) {
+    if (!sb) return;
+    const { error } =
+      costCents === null
+        ? await sb.from("product_costs").delete().eq("product_id", productId)
+        : await sb.from("product_costs").upsert({
+            product_id: productId,
+            cost_cents: costCents,
+            updated_at: new Date().toISOString(),
+          });
+    if (error)
+      throw new Error(
+        `Saved the product, but not its cost price: ${error.message}`,
+      );
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!sb) return;
@@ -238,13 +279,18 @@ export default function AdminProducts() {
 
     if (!name.trim() || !slug) return setMessage("Give the product a name.");
     if (!Number.isFinite(priceCents) || priceCents < 0)
-      return setMessage("Enter a valid price in rands.");
+      return setMessage("Enter a valid selling price in rands.");
     if (
       compareCents !== null &&
       (!Number.isFinite(compareCents) || !(compareCents > priceCents))
     )
       return setMessage(
-        "The original price must be higher than the price, or leave it empty.",
+        "The retail price must be higher than the selling price, or leave it empty.",
+      );
+    const costCents = cost.trim() ? toCents(cost) : null;
+    if (costCents !== null && (!Number.isFinite(costCents) || costCents < 0))
+      return setMessage(
+        "Enter a valid cost price in rands, or leave it empty.",
       );
     if (!categoryId) return setMessage("Choose a category.");
     if (files.some((f) => f.size > 5 * 1024 * 1024))
@@ -288,6 +334,7 @@ export default function AdminProducts() {
           })
           .eq("id", editing.id);
         if (error) throw new Error(error.message);
+        await saveCost(editing.id, costCents);
 
         // Tidy up photos that were taken off the product (best effort)
         const removed = editing.original.filter((u) => !keptImages.includes(u));
@@ -297,8 +344,14 @@ export default function AdminProducts() {
         setMessage(`Saved changes to "${name.trim()}".`);
         resetForm();
       } else {
-        const { error } = await sb.from("products").insert({ slug, ...fields });
-        if (error) throw new Error(error.message);
+        const { data: created, error } = await sb
+          .from("products")
+          .insert({ slug, ...fields })
+          .select("id")
+          .single();
+        if (error || !created)
+          throw new Error(error?.message ?? "Could not add the product.");
+        await saveCost(created.id as string, costCents);
         setMessage(`Added "${name.trim()}".`);
         resetForm();
       }
@@ -370,25 +423,50 @@ export default function AdminProducts() {
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-        <label className="text-sm text-muted">
-          Price (R)
-          <input
-            className={`${field} mt-1.5`}
-            inputMode="decimal"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-          />
-        </label>
-        <label className="text-sm text-muted">
-          Original price (R), only for a sale
-          <input
-            className={`${field} mt-1.5`}
-            placeholder="Leave empty when not on sale"
-            inputMode="decimal"
-            value={compare}
-            onChange={(e) => setCompare(e.target.value)}
-          />
-        </label>
+        <fieldset className="grid gap-4 rounded-2xl border border-line p-4 sm:col-span-2 sm:grid-cols-3">
+          <legend className="px-2 text-sm text-muted">Pricing</legend>
+          <label className="text-sm text-muted">
+            Cost price (R), only you see this
+            <input
+              className={`${field} mt-1.5`}
+              placeholder="What you pay"
+              inputMode="decimal"
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+            />
+          </label>
+          <label className="text-sm text-muted">
+            Selling price (R)
+            <input
+              className={`${field} mt-1.5`}
+              placeholder="What the customer pays"
+              inputMode="decimal"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+          </label>
+          <label className="text-sm text-muted">
+            Retail price (R), optional
+            <input
+              className={`${field} mt-1.5`}
+              placeholder="Shown crossed out"
+              inputMode="decimal"
+              value={compare}
+              onChange={(e) => setCompare(e.target.value)}
+            />
+          </label>
+          <p
+            className={`text-sm sm:col-span-3 ${
+              profit !== null && profit < 0 ? "text-sale" : "text-muted"
+            }`}
+          >
+            {profit === null
+              ? "Enter a cost and a selling price to see your profit."
+              : profit < 0
+                ? `You would lose ${rands(-profit)} on every sale.`
+                : `Profit ${rands(profit)} per item${margin !== null ? ` (${margin.toFixed(0)}% margin)` : ""}.`}
+          </p>
+        </fieldset>
         <label className="text-sm text-muted">
           Category
           <select
@@ -654,6 +732,21 @@ export default function AdminProducts() {
                 <p className="truncate text-[15px] text-ink">{r.name}</p>
                 <p className="text-sm text-muted">
                   {nameOf(r.category_id)} · {rands(r.price_cents)}
+                  {costs[r.id] != null && (
+                    <span
+                      className={r.price_cents < costs[r.id] ? "text-sale" : ""}
+                    >
+                      {" "}
+                      (cost {rands(costs[r.id])},{" "}
+                      {r.price_cents > 0
+                        ? Math.round(
+                            ((r.price_cents - costs[r.id]) / r.price_cents) *
+                              100,
+                          )
+                        : 0}
+                      % margin)
+                    </span>
+                  )}
                   {onSale && (
                     <>
                       {" "}

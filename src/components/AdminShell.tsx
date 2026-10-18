@@ -15,6 +15,7 @@ type Status = "unconfigured" | "loading" | "signedout" | "forbidden" | "ready";
 
 const NAV = [
   { href: "/admin", label: "Products" },
+  { href: "/admin/import", label: "Import" },
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/reviews", label: "Reviews" },
 ];
