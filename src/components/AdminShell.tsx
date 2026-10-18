@@ -19,6 +19,7 @@ const NAV = [
   { href: "/admin/import", label: "Import" },
   { href: "/admin/orders", label: "Orders" },
   { href: "/admin/reviews", label: "Reviews" },
+  { href: "/admin/users", label: "Users" },
 ];
 
 export default function AdminShell({
