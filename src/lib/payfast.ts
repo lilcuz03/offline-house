@@ -24,15 +24,15 @@ export type PayfastConfig = {
 };
 
 export function getPayfastConfig(): PayfastConfig | null {
-  const merchantId = process.env.PAYFAST_MERCHANT_ID;
-  const merchantKey = process.env.PAYFAST_MERCHANT_KEY;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "");
+  const merchantId = process.env.PAYFAST_MERCHANT_ID?.trim();
+  const merchantKey = process.env.PAYFAST_MERCHANT_KEY?.trim();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
   if (!merchantId || !merchantKey || !siteUrl) return null;
 
   return {
     merchantId,
     merchantKey,
-    passphrase: process.env.PAYFAST_PASSPHRASE ?? "",
+    passphrase: (process.env.PAYFAST_PASSPHRASE ?? "").trim(),
     sandbox: process.env.PAYFAST_SANDBOX === "true",
     siteUrl,
   };
