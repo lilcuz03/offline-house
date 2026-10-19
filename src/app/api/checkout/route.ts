@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { SHIPPING_OPTIONS, shippingPriceFor } from "@/lib/shipping";
 import { buildPayment, getPayfastConfig } from "@/lib/payfast";
+import { createStitchPayment, getStitchConfig } from "@/lib/stitch";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const UUID_RE =
@@ -55,6 +56,8 @@ export async function POST(request: Request) {
   const postalCode = str(body.postalCode);
   const notes = str(body.notes);
   const shippingId = str(body.shippingId);
+  const method: "payfast" | "stitch" =
+    body.paymentMethod === "stitch" ? "stitch" : "payfast";
 
   const detailsOk =
     EMAIL_RE.test(email) &&
@@ -108,10 +111,11 @@ export async function POST(request: Request) {
 
   /* ---- 3. Servers, keys and money ---- */
   const db = getSupabaseAdmin();
-  const pay = getPayfastConfig();
-  if (!db || !pay) {
+  const pay = method === "payfast" ? getPayfastConfig() : null;
+  const stitch = method === "stitch" ? getStitchConfig() : null;
+  if (!db || (method === "payfast" ? !pay : !stitch)) {
     console.error(
-      "Checkout: Supabase or PayFast environment variables are missing.",
+      `Checkout: Supabase or ${method} environment variables are missing.`,
     );
     return fail("Checkout is not available right now.", 500);
   }
@@ -176,9 +180,9 @@ export async function POST(request: Request) {
       shipping_cents: shippingCents,
       subtotal_cents: subtotalCents,
       total_cents: totalCents,
-      payment_provider: "payfast",
+      payment_provider: method,
       // Sandbox payments are test orders and stay out of the sales reports
-      is_test: pay.sandbox,
+      is_test: method === "payfast" ? pay!.sandbox : stitch!.test,
     })
     .select("id, number, access_token")
     .single();
@@ -238,8 +242,39 @@ export async function POST(request: Request) {
       console.error("Checkout: cost snapshot failed:", costError.message);
   }
 
-  /* ---- 5. Hand over to PayFast ---- */
-  const payment = buildPayment(pay, {
+  /* ---- 5a. Hand over to Stitch ---- */
+  if (method === "stitch") {
+    try {
+      const created = await createStitchPayment(stitch!, {
+        orderNumber: saved.number,
+        totalCents,
+        orderToken: saved.access_token,
+        firstName,
+        lastName,
+        email,
+        phone,
+      });
+      // Remember Stitch's id for this payment, so we can check on it later
+      await db
+        .from("orders")
+        .update({ payment_reference: created.id })
+        .eq("id", saved.id);
+      return NextResponse.json({
+        orderNumber: saved.number,
+        redirectUrl: created.url,
+      });
+    } catch (err) {
+      console.error("Checkout: Stitch payment failed to start:", err);
+      await db.from("orders").delete().eq("id", saved.id); // leave nothing half-made
+      return fail(
+        "We couldn't start that payment. Please try again or choose another way to pay.",
+        502,
+      );
+    }
+  }
+
+  /* ---- 5b. Hand over to PayFast ---- */
+  const payment = buildPayment(pay!, {
     number: saved.number,
     token: saved.access_token,
     totalCents,

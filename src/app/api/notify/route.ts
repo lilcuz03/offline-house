@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
 import { getPayfastConfig, verifyNotification } from "@/lib/payfast";
+import { sendOrderEmails } from "@/lib/order-emails";
 
 type OrderRow = { id: string; total_cents: number; payment_status: string };
 
@@ -40,7 +41,12 @@ export async function POST(request: Request) {
 
   // The amount paid must match what we asked for
   if (gross !== order.total_cents) {
-    console.error("PayFast notify: amount mismatch for", number, gross, order.total_cents);
+    console.error(
+      "PayFast notify: amount mismatch for",
+      number,
+      gross,
+      order.total_cents,
+    );
     return new NextResponse("Amount mismatch", { status: 400 });
   }
 
@@ -53,9 +59,14 @@ export async function POST(request: Request) {
       console.error("PayFast notify: fulfil_order failed:", rpcError.message);
       return new NextResponse("Could not update order", { status: 500 });
     }
+    // Thank-you email to the customer and an alert to you (sent once per order)
+    await sendOrderEmails(db, order.id);
   } else if (status === "FAILED" || status === "CANCELLED") {
     if (order.payment_status !== "paid") {
-      await db.from("orders").update({ payment_status: "failed" }).eq("id", order.id);
+      await db
+        .from("orders")
+        .update({ payment_status: "failed" })
+        .eq("id", order.id);
     }
   }
   // PENDING: nothing to do yet, PayFast will notify again
