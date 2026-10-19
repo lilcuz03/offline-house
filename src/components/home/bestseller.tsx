@@ -350,7 +350,7 @@ export default function BestSellers({
           ref={setRail}
           aria-roledescription="carousel"
           aria-label={title}
-          className="-mx-5 mt-10 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto scroll-smooth px-5 pb-2 [scrollbar-width:none] sm:-mx-8 sm:scroll-px-8 sm:gap-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
+          className="-mx-5 mt-10 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto scroll-smooth px-5 pb-2 scrollbar-none sm:-mx-8 sm:scroll-px-8 sm:gap-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
         >
           {items.map((p, i) => {
             const isLiked = has(p.id);
@@ -365,9 +365,7 @@ export default function BestSellers({
                 key={p.id}
                 style={{ transitionDelay: `${Math.min(i, 5) * 90}ms` }}
                 className={`w-[72%] shrink-0 snap-start transition-[opacity,transform] duration-[900ms] ${EASE} sm:w-[44%] md:w-[31%] lg:w-[23.5%] ${
-                  seen
-                    ? "translate-x-0 opacity-100"
-                    : "translate-x-16 opacity-0"
+                  seen ? "translate-y-0 opacity-100" : "translate-y-8 opacity-0"
                 }`}
               >
                 <article className="group">
