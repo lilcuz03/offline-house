@@ -350,7 +350,7 @@ export default function BestSellers({
           ref={setRail}
           aria-roledescription="carousel"
           aria-label={title}
-          className="-mx-5 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth px-5 pb-2 [scrollbar-width:none] sm:-mx-8 sm:gap-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
+          className="-mx-5 mt-10 flex snap-x snap-mandatory scroll-px-5 gap-4 overflow-x-auto scroll-smooth px-5 pb-2 [scrollbar-width:none] sm:-mx-8 sm:scroll-px-8 sm:gap-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
         >
           {items.map((p, i) => {
             const isLiked = has(p.id);
