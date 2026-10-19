@@ -263,15 +263,15 @@ export default function AdminUsers() {
                 {candidates.map((u) => (
                   <li
                     key={u.id}
-                    className="flex flex-wrap items-center justify-between gap-3 p-3 sm:px-4"
+                    className="flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
                   >
-                    <span className="min-w-0 truncate text-[15px] text-ink">
+                    <span className="min-w-0 break-all text-[15px] text-ink sm:truncate sm:break-normal">
                       {u.email ?? "(no email)"}
                     </span>
                     <button
                       onClick={() => setAdmin(u, true)}
                       disabled={busyId === u.id}
-                      className="h-10 rounded-full bg-ink px-5 text-sm text-white transition-colors duration-300 hover:bg-gold hover:text-ink disabled:opacity-50"
+                      className="h-11 w-full rounded-full bg-ink px-5 text-sm text-white sm:h-10 sm:w-auto transition-colors duration-300 hover:bg-gold hover:text-ink disabled:opacity-50"
                     >
                       {busyId === u.id ? "Saving..." : "Make admin"}
                     </button>
@@ -315,7 +315,7 @@ export default function AdminUsers() {
             return (
               <li
                 key={u.id}
-                className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 sm:px-6"
+                className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:gap-6 sm:px-6"
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-ink">
@@ -326,7 +326,9 @@ export default function AdminUsers() {
                         aria-label="Signed in during the last 24 hours"
                       />
                     )}
-                    <span className="truncate">{u.email ?? "(no email)"}</span>
+                    <span className="min-w-0 break-all sm:truncate sm:break-normal">
+                      {u.email ?? "(no email)"}
+                    </span>
                     {u.is_admin && (
                       <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs text-white">
                         Admin
@@ -338,21 +340,25 @@ export default function AdminUsers() {
                       </span>
                     )}
                   </p>
-                  <p className="text-sm text-muted">
-                    Joined {fmtDate(u.created_at)} · Last sign-in{" "}
-                    {ago(u.last_sign_in_at)} · {u.orders} paid order
-                    {u.orders === 1 ? "" : "s"}
+                  <p className="mt-1 flex flex-col gap-0.5 text-sm text-muted sm:mt-0 sm:block">
+                    <span>Joined {fmtDate(u.created_at)}</span>
+                    <span className="hidden sm:inline"> · </span>
+                    <span>Last sign-in {ago(u.last_sign_in_at)}</span>
+                    <span className="hidden sm:inline"> · </span>
+                    <span>
+                      {u.orders} paid order{u.orders === 1 ? "" : "s"}
+                    </span>
                   </p>
                 </div>
                 {isMe && u.is_admin ? (
-                  <span className="text-sm text-muted">
+                  <span className="text-sm text-muted sm:text-right">
                     Another admin must remove you
                   </span>
                 ) : (
                   <button
                     onClick={() => setAdmin(u, !u.is_admin)}
                     disabled={busyId === u.id}
-                    className={`h-10 rounded-full border px-4 text-sm transition-colors duration-300 disabled:opacity-50 ${
+                    className={`h-11 w-full rounded-full border px-4 text-sm transition-colors duration-300 disabled:opacity-50 sm:h-10 sm:w-auto ${
                       u.is_admin
                         ? "border-line text-sale hover:border-sale"
                         : "border-line text-ink hover:border-ink"
