@@ -138,7 +138,10 @@ export async function verifyNotification(
 
   // 2. It must be for our merchant account
   if (params.get("merchant_id") !== cfg.merchantId) {
-    return { ok: false, reason: "wrong merchant" };
+    return {
+      ok: false,
+      reason: `wrong merchant (PayFast sent "${params.get("merchant_id")}", this site expects "${cfg.merchantId}")`,
+    };
   }
 
   // 3. PayFast itself must confirm it sent this
