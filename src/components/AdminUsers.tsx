@@ -4,12 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 
 /*
- * Accounts list with a button to grant or remove admin access. The list and
- * the change both go through /api/admin/users, which checks on the server that
- * the caller is an admin before using the secret key.
+ * Accounts and admin access, in two tabs:
+ *   - All accounts: everyone who has signed up, newest sign-in first
+ *   - Admins: only the people with admin access, plus a box to add more
  *
- * "Last sign-in" is when someone last logged in, not whether they are on the
- * site right now.
+ * The list and every change go through /api/admin/users, which checks on the
+ * server that the caller is an admin before using the secret key.
+ *
+ * "Last sign-in" is when someone last logged in. The green dot marks people
+ * who signed in during the last 24 hours. It does not mean they are on the
+ * site this second.
  */
 
 type User = {
@@ -21,8 +25,12 @@ type User = {
   orders: number;
 };
 
+type Tab = "all" | "admins";
+
 const field =
   "h-12 w-full rounded-2xl border border-line bg-white/70 px-4 text-[15px] text-ink placeholder:text-muted/60 transition-colors duration-300 hover:border-ink/40 focus:border-ink focus:outline-none";
+
+const DAY = 24 * 60 * 60 * 1000;
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-ZA", {
@@ -32,9 +40,9 @@ const fmtDate = (iso: string) =>
   });
 
 function ago(iso: string | null) {
-  if (!iso) return "Never";
+  if (!iso) return "never";
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (mins < 2) return "Just now";
+  if (mins < 2) return "just now";
   if (mins < 60) return `${mins} min ago`;
   const hrs = Math.round(mins / 60);
   if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
@@ -43,15 +51,21 @@ function ago(iso: string | null) {
   return fmtDate(iso);
 }
 
+const wasRecent = (iso: string | null) =>
+  !!iso && Date.now() - new Date(iso).getTime() < DAY;
+
 export default function AdminUsers() {
   const [sb] = useState(() =>
     typeof window === "undefined" || !supabaseConfigured ? null : getSupabase(),
   );
   const [users, setUsers] = useState<User[]>([]);
+  const [me, setMe] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [tab, setTab] = useState<Tab>("all");
   const [search, setSearch] = useState("");
-  const [onlyAdmins, setOnlyAdmins] = useState(false);
+  const [addSearch, setAddSearch] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
@@ -76,10 +90,11 @@ export default function AdminUsers() {
         : null;
       const json = res ? await res.json().catch(() => ({})) : {};
       if (cancelled) return;
+      setMe(data.session?.user.id ?? null);
       if (!res || !res.ok) {
+        setIsError(true);
         setMessage(json.error ?? "Could not load users.");
       } else {
-        setMessage("");
         setUsers(json.users as User[]);
       }
       setLoading(false);
@@ -89,32 +104,40 @@ export default function AdminUsers() {
     };
   }, [sb, tick]);
 
-  async function setAdmin(u: User, isAdmin: boolean) {
-    const verb = isAdmin ? "make an admin" : "remove admin access from";
-    if (
-      !window.confirm(
-        `${verb[0].toUpperCase()}${verb.slice(1)} ${u.email ?? "this account"}?`,
-      )
-    )
-      return;
+  async function setAdmin(u: User, makeAdmin: boolean) {
+    const name = u.email ?? "this account";
+    const ok = window.confirm(
+      makeAdmin
+        ? `Make ${name} an admin? They will be able to see and change products, orders, costs, messages and users.`
+        : `Remove admin access from ${name}?`,
+    );
+    if (!ok) return;
+
     const headers = await authHeader();
-    if (!headers) return setMessage("Sign in again.");
+    if (!headers) {
+      setIsError(true);
+      return setMessage("Sign in again.");
+    }
     setBusyId(u.id);
     setMessage("");
     try {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: u.id, isAdmin }),
+        body: JSON.stringify({ userId: u.id, isAdmin: makeAdmin }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) setMessage(json.error ?? "That did not work.");
-      else {
+      if (!res.ok) {
+        setIsError(true);
+        setMessage(json.error ?? "That did not work.");
+      } else {
+        setIsError(false);
         setMessage(
-          isAdmin
-            ? `${u.email} is now an admin.`
-            : `${u.email} is no longer an admin.`,
+          makeAdmin
+            ? `${name} is now an admin.`
+            : `${name} is no longer an admin.`,
         );
+        setAddSearch("");
         setTick((t) => t + 1);
       }
     } finally {
@@ -122,14 +145,24 @@ export default function AdminUsers() {
     }
   }
 
+  const admins = useMemo(() => users.filter((u) => u.is_admin), [users]);
+
   const shown = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return users.filter(
-      (u) =>
-        (!q || (u.email ?? "").toLowerCase().includes(q)) &&
-        (!onlyAdmins || u.is_admin),
-    );
-  }, [users, search, onlyAdmins]);
+    const base = tab === "admins" ? admins : users;
+    return q
+      ? base.filter((u) => (u.email ?? "").toLowerCase().includes(q))
+      : base;
+  }, [users, admins, tab, search]);
+
+  // Accounts you could promote, found by typing in the Admins tab
+  const candidates = useMemo(() => {
+    const q = addSearch.trim().toLowerCase();
+    if (!q) return [];
+    return users
+      .filter((u) => !u.is_admin && (u.email ?? "").toLowerCase().includes(q))
+      .slice(0, 5);
+  }, [users, addSearch]);
 
   if (!sb) {
     return (
@@ -140,7 +173,10 @@ export default function AdminUsers() {
     );
   }
 
-  const admins = users.filter((u) => u.is_admin).length;
+  const tabs: { id: Tab; label: string; count: number }[] = [
+    { id: "all", label: "All accounts", count: users.length },
+    { id: "admins", label: "Admins", count: admins.length },
+  ];
 
   return (
     <section className="px-5 py-10 sm:py-16 md:px-0">
@@ -148,90 +184,192 @@ export default function AdminUsers() {
         Users
       </h1>
       <p className="mt-3 max-w-xl text-muted">
-        Everyone with an account. Admins can see this dashboard, orders and
-        costs, so only give it to people you trust.
+        Admins can see this dashboard, orders, costs and messages, so only give
+        it to people you trust.
       </p>
 
-      <div className="mt-8 flex flex-wrap items-center gap-4">
-        <input
-          className={`${field} sm:max-w-sm`}
-          type="search"
-          placeholder="Search by email"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        <label className="flex items-center gap-3 text-[15px] text-ink">
-          <input
-            type="checkbox"
-            checked={onlyAdmins}
-            onChange={(e) => setOnlyAdmins(e.target.checked)}
-            className="size-5"
-          />
-          Admins only
-        </label>
+      {/* Tabs */}
+      <div
+        role="tablist"
+        aria-label="Account lists"
+        className="mt-8 inline-flex rounded-full border border-line bg-white/60 p-1"
+      >
+        {tabs.map((t) => (
+          <button
+            key={t.id}
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            onClick={() => {
+              setTab(t.id);
+              setSearch("");
+            }}
+            className={`h-11 rounded-full px-5 text-[15px] transition-colors duration-300 ${
+              tab === t.id ? "bg-ink text-white" : "text-ink hover:bg-stone/40"
+            }`}
+          >
+            {t.label}
+            <span
+              className={`ml-2 text-sm ${
+                tab === t.id ? "text-white/70" : "text-muted"
+              }`}
+            >
+              {loading ? "" : t.count}
+            </span>
+          </button>
+        ))}
       </div>
 
-      <p
-        className="mt-4 text-sm text-muted"
-        role="status"
-      >
-        {loading
-          ? "Loading..."
-          : `${users.length} account${users.length === 1 ? "" : "s"}, ${admins} admin${admins === 1 ? "" : "s"}${
-              shown.length !== users.length ? `. Showing ${shown.length}.` : "."
-            }`}
-      </p>
       {message && (
         <p
-          role="alert"
-          className="mt-2 text-[15px] text-ink"
+          role={isError ? "alert" : "status"}
+          className={`mt-5 rounded-2xl px-5 py-3 text-[15px] ${
+            isError ? "bg-sale/10 text-sale" : "bg-sage/30 text-ink"
+          }`}
         >
           {message}
         </p>
       )}
 
-      <ul className="mt-3 divide-y divide-line rounded-3xl border border-line bg-white/50">
-        {!loading && shown.length === 0 && (
-          <li className="p-6 text-muted">No accounts match.</li>
-        )}
-        {shown.map((u) => (
-          <li
-            key={u.id}
-            className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 sm:px-6"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[15px] text-ink">
-                {u.email ?? "(no email)"}
-                {u.is_admin && (
-                  <span className="ml-2 rounded-full bg-ink px-2.5 py-0.5 align-middle text-xs text-white">
-                    Admin
-                  </span>
+      <div
+        role="tabpanel"
+        id={`panel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+        className="mt-6"
+      >
+        {/* Admins tab: add someone */}
+        {tab === "admins" && (
+          <div className="mb-8 rounded-3xl border border-line bg-white/50 p-5 sm:p-6">
+            <h2 className="text-lg text-ink">Add an admin</h2>
+            <p className="mt-1 text-sm text-muted">
+              Type the email of someone who already has an account.
+            </p>
+            <input
+              className={`${field} mt-4 sm:max-w-sm`}
+              type="search"
+              placeholder="Search accounts by email"
+              value={addSearch}
+              onChange={(e) => setAddSearch(e.target.value)}
+              aria-label="Find an account to make admin"
+            />
+            {addSearch.trim() && (
+              <ul className="mt-3 divide-y divide-line rounded-2xl border border-line bg-white/70">
+                {candidates.length === 0 && (
+                  <li className="p-4 text-sm text-muted">
+                    No matching account. They need to sign up on the site first.
+                  </li>
                 )}
-              </p>
-              <p className="text-sm text-muted">
-                Joined {fmtDate(u.created_at)} · Last sign-in{" "}
-                {ago(u.last_sign_in_at)} · {u.orders} paid order
-                {u.orders === 1 ? "" : "s"}
-              </p>
-            </div>
-            <button
-              onClick={() => setAdmin(u, !u.is_admin)}
-              disabled={busyId === u.id}
-              className={`h-10 rounded-full border px-4 text-sm transition-colors duration-300 disabled:opacity-50 ${
-                u.is_admin
-                  ? "border-line text-sale hover:border-sale"
-                  : "border-line text-ink hover:border-ink"
-              }`}
-            >
-              {busyId === u.id
-                ? "Saving..."
-                : u.is_admin
-                  ? "Remove admin"
-                  : "Make admin"}
-            </button>
-          </li>
-        ))}
-      </ul>
+                {candidates.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex flex-wrap items-center justify-between gap-3 p-3 sm:px-4"
+                  >
+                    <span className="min-w-0 truncate text-[15px] text-ink">
+                      {u.email ?? "(no email)"}
+                    </span>
+                    <button
+                      onClick={() => setAdmin(u, true)}
+                      disabled={busyId === u.id}
+                      className="h-10 rounded-full bg-ink px-5 text-sm text-white transition-colors duration-300 hover:bg-gold hover:text-ink disabled:opacity-50"
+                    >
+                      {busyId === u.id ? "Saving..." : "Make admin"}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        <input
+          className={`${field} sm:max-w-sm`}
+          type="search"
+          placeholder={
+            tab === "admins" ? "Search admins by email" : "Search all accounts"
+          }
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search the list below"
+        />
+
+        <p
+          className="mt-4 text-sm text-muted"
+          role="status"
+        >
+          {loading
+            ? "Loading..."
+            : tab === "all"
+              ? `${shown.length} of ${users.length} account${users.length === 1 ? "" : "s"}, newest sign-in first. Green dot: signed in during the last 24 hours.`
+              : `${shown.length} of ${admins.length} admin${admins.length === 1 ? "" : "s"}.`}
+        </p>
+
+        <ul className="mt-3 divide-y divide-line rounded-3xl border border-line bg-white/50">
+          {!loading && shown.length === 0 && (
+            <li className="p-6 text-muted">
+              {tab === "admins" ? "No admins match." : "No accounts match."}
+            </li>
+          )}
+          {shown.map((u) => {
+            const isMe = u.id === me;
+            return (
+              <li
+                key={u.id}
+                className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 sm:px-6"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[15px] text-ink">
+                    {wasRecent(u.last_sign_in_at) && (
+                      <span
+                        className="size-2 shrink-0 rounded-full bg-sage"
+                        title="Signed in during the last 24 hours"
+                        aria-label="Signed in during the last 24 hours"
+                      />
+                    )}
+                    <span className="truncate">{u.email ?? "(no email)"}</span>
+                    {u.is_admin && (
+                      <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs text-white">
+                        Admin
+                      </span>
+                    )}
+                    {isMe && (
+                      <span className="rounded-full border border-line px-2.5 py-0.5 text-xs text-muted">
+                        You
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-sm text-muted">
+                    Joined {fmtDate(u.created_at)} · Last sign-in{" "}
+                    {ago(u.last_sign_in_at)} · {u.orders} paid order
+                    {u.orders === 1 ? "" : "s"}
+                  </p>
+                </div>
+                {isMe && u.is_admin ? (
+                  <span className="text-sm text-muted">
+                    Another admin must remove you
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setAdmin(u, !u.is_admin)}
+                    disabled={busyId === u.id}
+                    className={`h-10 rounded-full border px-4 text-sm transition-colors duration-300 disabled:opacity-50 ${
+                      u.is_admin
+                        ? "border-line text-sale hover:border-sale"
+                        : "border-line text-ink hover:border-ink"
+                    }`}
+                  >
+                    {busyId === u.id
+                      ? "Saving..."
+                      : u.is_admin
+                        ? "Remove admin"
+                        : "Make admin"}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </section>
   );
 }
