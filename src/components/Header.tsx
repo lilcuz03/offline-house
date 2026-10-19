@@ -307,7 +307,7 @@ export default function Header() {
           {/* Main bar */}
           <div
             className={`mx-auto grid max-w-7xl grid-cols-[1fr_auto_1fr] items-center px-2 transition-[height] duration-500 sm:px-6 ${EASE} ${
-              scrolled ? "h-14 lg:h-16" : "h-16 lg:h-[76px]"
+              scrolled ? "h-16 lg:h-[80px]" : "h-[72px] lg:h-[108px]"
             }`}
           >
             <div className="flex items-center">
