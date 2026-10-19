@@ -202,10 +202,15 @@ export async function sendOrderEmails(
   orderId: string,
 ): Promise<void> {
   try {
-    if (!emailConfigured()) return;
+    if (!emailConfigured()) {
+      console.error(
+        "Order emails: RESEND_API_KEY or EMAIL_FROM is missing, so no emails were sent.",
+      );
+      return;
+    }
 
     // Claim the order. Only the first caller gets a row back.
-    const { data: claimed } = await db
+    const { data: claimed, error: claimError } = await db
       .from("orders")
       .update({ confirmation_sent_at: new Date().toISOString() })
       .eq("id", orderId)
@@ -213,6 +218,13 @@ export async function sendOrderEmails(
       .is("confirmation_sent_at", null)
       .select("id")
       .maybeSingle();
+    if (claimError) {
+      console.error(
+        "Order emails: could not claim the order (is orders.confirmation_sent_at created? run supabase/order-emails.sql):",
+        claimError.message,
+      );
+      return;
+    }
     if (!claimed) return;
 
     const { data } = await db
@@ -224,6 +236,18 @@ export async function sendOrderEmails(
       .maybeSingle();
     if (!data) return;
     const order = data as unknown as EmailOrder;
+
+    // Your alert goes first and does not depend on the customer's email, so
+    // you always hear about a paid order. (Resend's idempotency key stops a
+    // retry from sending it twice.)
+    const owner = process.env.ORDER_NOTIFY_EMAIL?.trim();
+    if (owner) {
+      await sendEmail({
+        to: owner,
+        ...buildOwnerEmail(order),
+        idempotencyKey: `order-alert-${orderId}`,
+      });
+    }
 
     const customer = buildCustomerEmail(order);
     const sent = await sendEmail({
@@ -237,16 +261,6 @@ export async function sendOrderEmails(
         .from("orders")
         .update({ confirmation_sent_at: null })
         .eq("id", orderId);
-      return;
-    }
-
-    const owner = process.env.ORDER_NOTIFY_EMAIL;
-    if (owner) {
-      await sendEmail({
-        to: owner,
-        ...buildOwnerEmail(order),
-        idempotencyKey: `order-alert-${orderId}`,
-      });
     }
   } catch (err) {
     console.error("Order emails failed:", err);
