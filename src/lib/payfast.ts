@@ -101,7 +101,7 @@ export function buildPayment(
       `${cfg.siteUrl}/checkout/success?order=${encodeURIComponent(order.number)}&token=${order.token}`,
     ],
     ["cancel_url", `${cfg.siteUrl}/checkout?cancelled=1`],
-    ["notify_url", `${cfg.siteUrl}/api/notify`],
+    ["notify_url", `${cfg.siteUrl}/api/payfast/notify`],
     ["name_first", order.firstName],
     ["name_last", order.lastName],
     ["email_address", order.email],
