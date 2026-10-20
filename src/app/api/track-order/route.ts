@@ -27,12 +27,12 @@ type Row = {
   shipping_method: string;
 };
 
-// Accept common input formats while matching the stored OH-1004 format.
-function normaliseNumber(raw: string) {
+// Customers type "OH1004", "oh-1004" or just "1004". Orders may be stored with
+// or without the hyphen, so look up both spellings.
+function numberVariants(raw: string) {
   const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  if (/^\d+$/.test(n)) return `OH-${n}`;
-  const prefixed = /^OH(\d+)$/.exec(n);
-  return prefixed ? `OH-${prefixed[1]}` : n;
+  const digits = /^\d+$/.test(n) ? n : /^OH(\d+)$/.exec(n)?.[1];
+  return digits ? [`OH${digits}`, `OH-${digits}`] : [n];
 }
 
 export async function POST(request: Request) {
@@ -43,10 +43,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const number =
+  const numbers =
     typeof body?.orderNumber === "string"
-      ? normaliseNumber(body.orderNumber)
-      : "";
+      ? numberVariants(body.orderNumber)
+      : [];
+  const number = numbers[0] ?? "";
   const email =
     typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
 
@@ -71,8 +72,8 @@ export async function POST(request: Request) {
   const { data, error } = await db
     .from("orders")
     .select("number, status, payment_status, shipping_method")
-    .eq("number", number)
-    .eq("email", email)
+    .in("number", numbers)
+    .ilike("email", email.replace(/[%_\\]/g, "\\$&"))
     .maybeSingle();
 
   if (error) {
