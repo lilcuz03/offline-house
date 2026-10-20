@@ -27,8 +27,6 @@ type Row = {
   shipping_method: string;
 };
 
-type Extras = { carrier: string | null; tracking_url: string | null };
-
 // Accept common input formats while matching the stored OH-1004 format.
 function normaliseNumber(raw: string) {
   const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -95,22 +93,11 @@ export async function POST(request: Request) {
 
   const eta = SHIPPING_OPTIONS.find((s) => s.id === row.shipping_method)?.eta;
 
-  // Courier details are a bonus. If those columns are missing or empty, the
-  // lookup still works and simply shows no courier link.
-  const { data: extra } = await db
-    .from("orders")
-    .select("carrier, tracking_url")
-    .eq("number", row.number)
-    .maybeSingle();
-  const courier = extra as Extras | null;
-
   return NextResponse.json({
     order: {
       number: row.number,
       status: step,
       eta: step === "delivered" ? undefined : eta,
-      carrier: courier?.carrier ?? undefined,
-      trackingUrl: courier?.tracking_url ?? undefined,
     },
   });
 }
