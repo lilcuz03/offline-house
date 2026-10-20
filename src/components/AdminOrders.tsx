@@ -74,9 +74,7 @@ const addressLines = (o: Order) =>
 
 export default function AdminOrders() {
   const [sb] = useState(() =>
-    typeof window === "undefined" || !supabaseConfigured
-      ? null
-      : getSupabase(),
+    typeof window === "undefined" || !supabaseConfigured ? null : getSupabase(),
   );
   const [access, setAccess] = useState<Access>(
     supabaseConfigured ? "loading" : "unconfigured",
@@ -84,6 +82,8 @@ export default function AdminOrders() {
   const [tab, setTab] = useState<Status>("paid");
   const [orders, setOrders] = useState<Order[]>([]);
   const [message, setMessage] = useState("");
+  // A result from the last action. Unlike `message`, reloading the list does not clear it.
+  const [notice, setNotice] = useState("");
   const [tick, setTick] = useState(0);
   const reload = () => setTick((t) => t + 1);
 
@@ -129,13 +129,36 @@ export default function AdminOrders() {
     };
   }, [sb, access, tab, tick]);
 
+  // The change goes through the server, which also emails the customer when
+  // an order is marked shipped.
   async function advance(o: Order, to: Status) {
     if (!sb) return;
-    const { error } = await sb
-      .from("orders")
-      .update({ status: to })
-      .eq("id", o.id);
-    if (error) return setMessage(error.message);
+    setNotice("");
+    const { data } = await sb.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return setMessage("Sign in again.");
+    const res = await fetch("/api/admin/orders/status", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ orderId: o.id, status: to }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) return setMessage(json.error ?? "Could not update the order.");
+
+    if (to === "shipped") {
+      setNotice(
+        json.email === "sent"
+          ? `${o.number} marked shipped. We emailed ${o.email}.`
+          : json.email === "skipped"
+            ? `${o.number} marked shipped. The customer was already emailed.`
+            : `${o.number} marked shipped, but the shipping email could not be sent. Check the Vercel logs for "Shipped email".`,
+      );
+    } else {
+      setNotice(`${o.number} updated.`);
+    }
     reload();
   }
 
@@ -195,7 +218,10 @@ export default function AdminOrders() {
             key={t.id}
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              setNotice("");
+            }}
             className={`h-10 rounded-full px-5 text-sm transition-colors duration-300 ${
               tab === t.id
                 ? "bg-ink text-white"
@@ -207,6 +233,14 @@ export default function AdminOrders() {
         ))}
       </div>
 
+      {notice && (
+        <p
+          role="status"
+          className="mt-4 text-sm text-ink"
+        >
+          {notice}
+        </p>
+      )}
       {message && (
         <p
           role="status"
