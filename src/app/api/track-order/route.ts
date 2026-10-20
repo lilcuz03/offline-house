@@ -25,14 +25,16 @@ type Row = {
   status: string;
   payment_status: string;
   shipping_method: string;
-  carrier: string | null;
-  tracking_url: string | null;
 };
 
-// "100123", "oh-100123" and "OH-100123" all mean the same order
+type Extras = { carrier: string | null; tracking_url: string | null };
+
+// Accept common input formats while matching the stored OH-1004 format.
 function normaliseNumber(raw: string) {
-  const n = raw.trim().toUpperCase();
-  return /^\d+$/.test(n) ? `OH-${n}` : n;
+  const n = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (/^\d+$/.test(n)) return `OH-${n}`;
+  const prefixed = /^OH(\d+)$/.exec(n);
+  return prefixed ? `OH-${prefixed[1]}` : n;
 }
 
 export async function POST(request: Request) {
@@ -44,30 +46,43 @@ export async function POST(request: Request) {
   }
 
   const number =
-    typeof body?.orderNumber === "string" ? normaliseNumber(body.orderNumber) : "";
+    typeof body?.orderNumber === "string"
+      ? normaliseNumber(body.orderNumber)
+      : "";
   const email =
     typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
 
-  if (!number || number.length > 30 || !EMAIL_RE.test(email) || email.length > 254) {
+  if (
+    !number ||
+    number.length > 30 ||
+    !EMAIL_RE.test(email) ||
+    email.length > 254
+  ) {
     return NextResponse.json({ error: "Invalid request." }, { status: 400 });
   }
 
   const db = getSupabaseAdmin();
   if (!db) {
     console.error("Track order: Supabase environment variables are missing.");
-    return NextResponse.json({ error: "Server not configured." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Server not configured." },
+      { status: 500 },
+    );
   }
 
   const { data, error } = await db
     .from("orders")
-    .select("number, status, payment_status, shipping_method, carrier, tracking_url")
+    .select("number, status, payment_status, shipping_method")
     .eq("number", number)
     .eq("email", email)
     .maybeSingle();
 
   if (error) {
     console.error("Track order lookup failed:", error.message);
-    return NextResponse.json({ error: "Could not look that up." }, { status: 500 });
+    return NextResponse.json(
+      { error: "Could not look that up." },
+      { status: 500 },
+    );
   }
 
   const row = data as Row | null;
@@ -80,13 +95,22 @@ export async function POST(request: Request) {
 
   const eta = SHIPPING_OPTIONS.find((s) => s.id === row.shipping_method)?.eta;
 
+  // Courier details are a bonus. If those columns are missing or empty, the
+  // lookup still works and simply shows no courier link.
+  const { data: extra } = await db
+    .from("orders")
+    .select("carrier, tracking_url")
+    .eq("number", row.number)
+    .maybeSingle();
+  const courier = extra as Extras | null;
+
   return NextResponse.json({
     order: {
       number: row.number,
       status: step,
       eta: step === "delivered" ? undefined : eta,
-      carrier: row.carrier ?? undefined,
-      trackingUrl: row.tracking_url ?? undefined,
+      carrier: courier?.carrier ?? undefined,
+      trackingUrl: courier?.tracking_url ?? undefined,
     },
   });
 }
