@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import TrackOrder from "@/components/TrackerOrder";
+import TrackClient from "./TrackClient";
 
 type Props = { searchParams: Promise<{ order?: string | string[] }> };
 
@@ -7,11 +7,10 @@ async function Content({ searchParams }: Props) {
   const { order } = await searchParams;
   const number = (Array.isArray(order) ? order[0] : order) ?? "";
 
-  // Pass onLookup once orders are saved in Supabase.
   return (
     <>
       <title>Track your order</title>
-      <TrackOrder defaultOrderNumber={number} />
+      <TrackClient defaultOrderNumber={number} />
     </>
   );
 }
