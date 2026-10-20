@@ -402,13 +402,10 @@ export default function Header() {
                   </span>
                 )}
               </Link>
-              <Link
-                href="/cart"
+              <button
+                type="button"
                 aria-label={`Cart, ${cartCount} ${cartCount === 1 ? "item" : "items"}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  openCart();
-                }}
+                onClick={openCart}
                 className={iconButton}
               >
                 <BagIcon />
@@ -420,7 +417,7 @@ export default function Header() {
                     {cartCount}
                   </span>
                 )}
-              </Link>
+              </button>
             </div>
           </div>
 
