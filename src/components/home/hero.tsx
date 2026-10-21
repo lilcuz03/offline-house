@@ -2,71 +2,142 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { CATEGORIES } from "../../lib/categories";
 
 const EASE = "ease-[cubic-bezier(0.22,1,0.36,1)]";
 
-/* ---------- small pieces ---------- */
+/* ---------- pictures around the logo ----------
+   Drop your photos in /public/hero/ and point `src` at them.
+   Until a file exists, the tile falls back to a coloured block with an icon,
+   so nothing looks broken while you add images.
+   `pos` holds the breakpoint visibility + placement + size (lg and up).
+   The first 4 are also shown as a strip on mobile / tablet. */
 
-type TileIcon = "charger" | "cable" | "case" | "earbuds";
+type Glyph =
+  | "charger"
+  | "cable"
+  | "case"
+  | "earbuds"
+  | "powerbank"
+  | "lamp"
+  | "kitchen"
+  | "skincare";
 
-const TILES: {
+const PICS: {
   label: string;
-  note: string;
-  icon: TileIcon;
+  href: string;
+  src: string;
+  icon: Glyph;
   accent: string;
   pos: string;
+  rotate: number;
   depth: number;
   float: string;
   enter: number;
 }[] = [
   {
     label: "GaN chargers",
-    note: "Fast and cool",
+    href: "/collections/chargers-adapters",
+    src: "/hero/charger.jpg",
     icon: "charger",
     accent: "var(--cat-tech)",
-    pos: "left-[-2%] top-[12%] sm:left-[0%]",
+    pos: "hidden lg:block left-0 top-[3%] h-52 w-40",
+    rotate: -6,
     depth: 34,
     float: "7s",
-    enter: 1250,
+    enter: 300,
   },
   {
     label: "Braided cables",
-    note: "Built to bend",
+    href: "/collections/cables-usb",
+    src: "/hero/cable.jpg",
     icon: "cable",
     accent: "var(--gold)",
-    pos: "right-[-2%] top-[22%] sm:right-[0%]",
+    pos: "hidden lg:block right-0 top-[6%] h-44 w-44",
+    rotate: 6,
     depth: -28,
     float: "8s",
-    enter: 1400,
+    enter: 450,
   },
   {
     label: "Phone cases",
-    note: "Slim, grippy",
+    href: "/collections/phone-cases",
+    src: "/hero/case.jpg",
     icon: "case",
     accent: "var(--cat-beauty)",
-    pos: "left-[4%] bottom-[10%] sm:left-[6%]",
+    pos: "hidden lg:block left-[3%] top-[40%] h-44 w-36",
+    rotate: 4,
     depth: -40,
     float: "9s",
-    enter: 1550,
+    enter: 600,
   },
   {
     label: "Earbuds",
-    note: "All-day battery",
+    href: "/collections/earbuds-audio",
+    src: "/hero/earbuds.jpg",
     icon: "earbuds",
     accent: "var(--cat-essentials)",
-    pos: "right-[2%] bottom-[6%] sm:right-[4%]",
+    pos: "hidden lg:block right-[3%] top-[38%] h-52 w-40",
+    rotate: -4,
     depth: 24,
     float: "6.5s",
-    enter: 1700,
+    enter: 750,
+  },
+  {
+    label: "Power banks",
+    href: "/collections/power-banks",
+    src: "/hero/powerbank.jpg",
+    icon: "powerbank",
+    accent: "var(--cat-tech)",
+    pos: "hidden lg:block left-0 bottom-[2%] h-40 w-40",
+    rotate: -3,
+    depth: 30,
+    float: "7.5s",
+    enter: 900,
+  },
+  {
+    label: "Skincare tools",
+    href: "/collections/skincare-tools",
+    src: "/hero/skincare.jpg",
+    icon: "skincare",
+    accent: "var(--cat-beauty)",
+    pos: "hidden lg:block right-0 bottom-[2%] h-44 w-36",
+    rotate: 5,
+    depth: -34,
+    float: "8.5s",
+    enter: 1050,
+  },
+  {
+    label: "Lighting",
+    href: "/collections/lighting",
+    src: "/hero/lamp.jpg",
+    icon: "lamp",
+    accent: "var(--gold)",
+    pos: "hidden xl:block left-[19%] top-0 h-28 w-28",
+    rotate: 8,
+    depth: -22,
+    float: "6s",
+    enter: 1200,
+  },
+  {
+    label: "Kitchen",
+    href: "/collections/kitchen",
+    src: "/hero/kitchen.jpg",
+    icon: "kitchen",
+    accent: "var(--cat-essentials)",
+    pos: "hidden xl:block right-[19%] bottom-0 h-28 w-28",
+    rotate: -8,
+    depth: 22,
+    float: "7s",
+    enter: 1350,
   },
 ];
 
-function TileGlyph({ name }: { name: TileIcon }) {
+function PicGlyph({ name, size = 22 }: { name: Glyph; size?: number }) {
   const common = {
-    width: 22,
-    height: 22,
+    width: size,
+    height: size,
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
@@ -135,7 +206,98 @@ function TileGlyph({ name }: { name: TileIcon }) {
           <path d="M16 4a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3v5.5" />
         </svg>
       );
+    case "powerbank":
+      return (
+        <svg {...common}>
+          <rect
+            x="5"
+            y="8"
+            width="14"
+            height="10"
+            rx="2"
+          />
+          <path d="M9 8V6h6v2" />
+          <path d="m12.6 10.5-1.8 2.5h2.4l-1.8 2.5" />
+        </svg>
+      );
+    case "lamp":
+      return (
+        <svg {...common}>
+          <path d="M8 4h8l3 9H5l3-9Z" />
+          <path d="M12 13v6M9 20h6" />
+        </svg>
+      );
+    case "kitchen":
+      return (
+        <svg {...common}>
+          <path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8Z" />
+          <path d="M16 10h2a2 2 0 0 1 0 4h-2" />
+        </svg>
+      );
+    case "skincare":
+      return (
+        <svg {...common}>
+          <path d="M12 3v4M12 17v4M3 12h4M17 12h4" />
+          <path d="m6.5 6.5 2 2M15.5 15.5l2 2M17.5 6.5l-2 2M8.5 15.5l-2 2" />
+        </svg>
+      );
   }
+}
+
+/* One picture tile: photo with a coloured offset block behind it. */
+function PicCard({
+  pic,
+  compact = false,
+  className = "",
+}: {
+  pic: (typeof PICS)[number];
+  compact?: boolean;
+  className?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  return (
+    <Link
+      href={pic.href}
+      aria-label={pic.label}
+      style={
+        {
+          "--accent": pic.accent,
+          rotate: compact ? undefined : `${pic.rotate}deg`,
+        } as React.CSSProperties
+      }
+      className={`group relative block ${className}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute inset-0 translate-x-2 translate-y-2 rounded-3xl bg-(--accent) transition-transform duration-500 ${EASE} group-hover:translate-x-3 group-hover:translate-y-3`}
+      />
+      <span className="relative block h-full w-full overflow-hidden rounded-3xl border-4 border-white bg-white shadow-[0_24px_50px_-24px_rgba(0,0,0,0.4)]">
+        {failed ? (
+          <span className="grid h-full w-full place-items-center bg-(--accent) text-ink">
+            <PicGlyph
+              name={pic.icon}
+              size={compact ? 24 : 40}
+            />
+          </span>
+        ) : (
+          <Image
+            src={pic.src}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 176px, 25vw"
+            onError={() => setFailed(true)}
+            className={`object-cover transition-transform duration-700 ${EASE} group-hover:scale-105`}
+          />
+        )}
+        {!compact && (
+          <span className="absolute bottom-2 left-2 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-ink backdrop-blur">
+            {pic.label}
+          </span>
+        )}
+      </span>
+    </Link>
+  );
 }
 
 const ArrowIcon = () => (
@@ -195,90 +357,119 @@ export default function Hero() {
     root.current?.style.setProperty("--my", "0");
   };
 
-  const line1 = ["Disconnect"];
-  const line2 = ["to", "reconnect."];
-
   return (
     <section
       ref={root}
       onPointerMove={onMove}
       onPointerLeave={onLeave}
       style={{ "--mx": 0, "--my": 0 } as React.CSSProperties}
-      className="relative isolate overflow-hidden"
+      className="relative isolate overflow-hidden bg-[linear-gradient(135deg,var(--ivory)_0%,color-mix(in_srgb,var(--gold)_45%,white)_55%,color-mix(in_srgb,var(--cat-beauty)_40%,white)_100%)]"
     >
-      {/* Drifting colour fields */}
+      {/* Colour fields */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 -z-10"
       >
-        <div className="animate-drift absolute -left-24 top-10 h-72 w-72 rounded-full bg-(--cat-tech) opacity-25 blur-3xl sm:h-96 sm:w-96" />
+        <div className="animate-drift absolute -left-24 top-10 h-72 w-72 rounded-full bg-(--cat-tech) opacity-40 blur-3xl sm:h-96 sm:w-96" />
         <div
-          className="animate-drift absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-(--cat-beauty) opacity-25 blur-3xl sm:h-96 sm:w-96"
+          className="animate-drift absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-(--cat-beauty) opacity-40 blur-3xl sm:h-96 sm:w-96"
           style={{ animationDelay: "-6s", animationDuration: "22s" }}
         />
         <div
-          className="animate-drift absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-gold opacity-30 blur-3xl"
+          className="animate-drift absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-gold opacity-50 blur-3xl"
           style={{ animationDelay: "-12s", animationDuration: "26s" }}
         />
       </div>
 
-      <div className="mx-auto grid max-w-7xl items-center gap-6 px-5 pb-10 pt-10 sm:px-6 sm:pt-14 lg:min-h-[calc(100svh-156px)] lg:grid-cols-12 lg:gap-10 lg:pb-8 lg:pt-6">
-        {/* ---------- copy ---------- */}
-        <div className="relative z-10 lg:col-span-6">
-          <h1 className="font-serif text-[clamp(3.5rem,13.5vw,9rem)] font-light leading-[0.92] tracking-[-0.02em] text-ink lg:text-[clamp(4.5rem,8.4vw,9rem)]">
-            <span className="block">
-              {line1.map((w, i) => (
-                <span
-                  key={w}
-                  className="mask-word"
-                >
-                  <span
-                    className="animate-word-up"
-                    style={{ animationDelay: `${150 + i * 110}ms` }}
-                  >
-                    {w}
-                  </span>
+      <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-8 sm:px-6 lg:min-h-[calc(100svh-156px)] lg:pb-10 lg:pt-10">
+        {/* Mobile / tablet strip */}
+        <ul className="mb-10 grid grid-cols-4 gap-3 pr-2 lg:hidden">
+          {PICS.slice(0, 4).map((p) => (
+            <li key={p.label}>
+              <PicCard
+                pic={p}
+                compact
+                className="aspect-square w-full"
+              />
+            </li>
+          ))}
+        </ul>
+
+        {/* Pictures around the centre (lg and up) */}
+        {PICS.map((p) => (
+          <div
+            key={p.label}
+            className={`absolute z-0 ${p.pos}`}
+            style={{
+              transform: `translate3d(calc(var(--mx) * ${p.depth}px), calc(var(--my) * ${p.depth}px), 0)`,
+              transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
+            }}
+          >
+            <div
+              className="animate-float"
+              style={{ animationDuration: p.float }}
+            >
+              <div
+                className="animate-tile-in"
+                style={{ animationDelay: `${p.enter}ms` }}
+              >
+                <PicCard
+                  pic={p}
+                  className="h-full w-full"
+                />
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Centre: logo, store name, actions */}
+        <div className="relative z-10 mx-auto flex max-w-[36rem] flex-col items-center text-center lg:min-h-[calc(100svh-156px-5rem)] lg:justify-center">
+          {/* logo lockup: OH with the store name directly beneath */}
+          <div className="relative h-52 w-52 sm:h-64 sm:w-64">
+            <span
+              aria-hidden="true"
+              className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
+            />
+            <span
+              aria-hidden="true"
+              className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
+              style={{ animationDelay: "1.4s" }}
+            />
+            <div className="animate-disc-in relative flex h-full w-full flex-col items-center justify-center rounded-full bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.3)] ring-4 ring-gold/60">
+              <Image
+                src="/brand/logo-full.png"
+                alt=""
+                width={615}
+                height={350}
+                priority
+                className="h-auto w-[58%]"
+              />
+              <h1 className="-mt-1 pl-[0.32em] font-serif text-[0.8rem] font-medium uppercase tracking-[0.32em] text-ink sm:text-sm">
+                Offline House
+                <span className="sr-only">
+                  . Top-selling tech, home, living, beauty and everyday
+                  essentials.
                 </span>
-              ))}
-            </span>
-            <span className="block">
-              {line2.map((w, i) => (
-                <span
-                  key={w}
-                  className="mask-word mr-[0.2em] last:mr-0"
-                >
-                  <span
-                    className="animate-word-up"
-                    style={{ animationDelay: `${400 + i * 130}ms` }}
-                  >
-                    {w}
-                  </span>
-                </span>
-              ))}
-            </span>
-            <span className="sr-only">
-              Offline House. Top-selling tech, home, living, beauty and everyday
-              essentials.
-            </span>
-          </h1>
+              </h1>
+            </div>
+          </div>
 
           <p
-            className="animate-fade-up mt-6 max-w-[44ch] text-base leading-relaxed text-muted sm:text-lg"
-            style={{ animationDelay: "850ms" }}
+            className="animate-fade-up mt-8 max-w-[44ch] text-base leading-relaxed text-ink/70 sm:text-lg"
+            style={{ animationDelay: "600ms" }}
           >
             Chargers, cables and cases made to last, plus the home and everyday
             pieces that help you put the screen down.
           </p>
 
           <div
-            className="animate-fade-up mt-8 flex flex-wrap items-center gap-3"
-            style={{ animationDelay: "980ms" }}
+            className="animate-fade-up mt-8 flex flex-wrap items-center justify-center gap-3"
+            style={{ animationDelay: "750ms" }}
           >
             <Link
               href="/collections/top-sellers"
               className={`group relative inline-flex h-14 items-center gap-3 overflow-hidden rounded-full bg-ink pl-8 pr-6 text-[15px] text-white transition-transform duration-500 ${EASE} hover:scale-[1.03] active:scale-[0.98]`}
             >
-              {/* gold fill sweeps in on hover */}
               <span
                 aria-hidden="true"
                 className={`absolute inset-0 -translate-x-full bg-gold transition-transform duration-500 ${EASE} group-hover:translate-x-0`}
@@ -295,7 +486,7 @@ export default function Hero() {
 
             <Link
               href="/collections/deals"
-              className={`inline-flex h-14 items-center rounded-full border border-ink/20 px-7 text-[15px] text-ink transition-all duration-500 ${EASE} hover:border-ink hover:bg-ink hover:text-white`}
+              className={`inline-flex h-14 items-center rounded-full border border-ink/30 bg-white/40 px-7 text-[15px] text-ink backdrop-blur transition-all duration-500 ${EASE} hover:border-ink hover:bg-ink hover:text-white`}
             >
               See deals
             </Link>
@@ -303,15 +494,15 @@ export default function Hero() {
 
           {/* Category quick links */}
           <ul
-            className="animate-fade-up mt-9 flex flex-wrap gap-2"
-            style={{ animationDelay: "1100ms" }}
+            className="animate-fade-up mt-9 flex flex-wrap justify-center gap-2"
+            style={{ animationDelay: "900ms" }}
           >
             {CATEGORIES.map((c) => (
               <li key={c.slug}>
                 <Link
                   href={`/collections/${c.slug}`}
                   style={{ "--accent": c.accent } as React.CSSProperties}
-                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-line bg-white/50 px-4 py-2 text-sm text-ink backdrop-blur transition-colors duration-300 hover:border-(--accent)"
+                  className="group relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-line bg-white/60 px-4 py-2 text-sm text-ink backdrop-blur transition-colors duration-300 hover:border-(--accent)"
                 >
                   <span
                     aria-hidden="true"
@@ -327,183 +518,6 @@ export default function Hero() {
             ))}
           </ul>
         </div>
-
-        {/* ---------- orbit ---------- */}
-        <div className="relative z-0 lg:col-span-6">
-          <div className="relative mx-auto aspect-square w-full max-w-[400px] sm:max-w-[540px] lg:max-w-[600px]">
-            {/* soft disc */}
-            <div
-              aria-hidden="true"
-              className="animate-disc-in absolute inset-[6%] rounded-full bg-[radial-gradient(circle_at_30%_25%,#fff_0%,var(--ivory)_45%,var(--stone)_100%)] shadow-[0_60px_120px_-50px_rgba(0,0,0,0.35)]"
-            />
-
-            {/* rings */}
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 100 100"
-              className="animate-spin-slow absolute inset-0 h-full w-full"
-              style={{ animationDuration: "60s" }}
-            >
-              <circle
-                cx="50"
-                cy="50"
-                r="47"
-                fill="none"
-                stroke="var(--ink)"
-                strokeOpacity="0.25"
-                strokeWidth="0.25"
-                strokeDasharray="0.6 2.2"
-                strokeLinecap="round"
-              />
-            </svg>
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 100 100"
-              className="animate-spin-rev absolute inset-0 h-full w-full"
-              style={{ animationDuration: "90s" }}
-            >
-              <circle
-                cx="50"
-                cy="50"
-                r="36"
-                fill="none"
-                stroke="var(--gold-deep)"
-                strokeOpacity="0.55"
-                strokeWidth="0.25"
-              />
-              <circle
-                cx="50"
-                cy="50"
-                r="25"
-                fill="none"
-                stroke="var(--ink)"
-                strokeOpacity="0.18"
-                strokeWidth="0.25"
-                strokeDasharray="1 3"
-              />
-            </svg>
-
-            {/* orbiting dots */}
-            <div
-              aria-hidden="true"
-              className="animate-spin-slow absolute inset-0"
-              style={{ animationDuration: "18s" }}
-            >
-              <span className="absolute left-1/2 top-[3%] h-3 w-3 -translate-x-1/2 rounded-full bg-gold shadow-[0_0_0_6px_rgba(212,175,124,0.25)]" />
-            </div>
-            <div
-              aria-hidden="true"
-              className="animate-spin-rev absolute inset-[14%]"
-              style={{ animationDuration: "26s" }}
-            >
-              <span className="absolute bottom-0 left-1/2 h-2.5 w-2.5 -translate-x-1/2 rounded-full bg-(--cat-tech)" />
-            </div>
-            <div
-              aria-hidden="true"
-              className="animate-spin-slow absolute inset-[27%]"
-              style={{ animationDuration: "14s" }}
-            >
-              <span className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-(--cat-beauty)" />
-            </div>
-
-            {/* the cable draws itself in, then stays */}
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 100 100"
-              className="absolute inset-0 h-full w-full overflow-visible"
-            >
-              <path
-                d="M2 88 C 20 98, 30 70, 42 66 S 62 74, 58 58 S 36 52, 50 38"
-                pathLength="1"
-                fill="none"
-                stroke="var(--ink)"
-                strokeWidth="0.9"
-                strokeLinecap="round"
-                className="animate-draw"
-                style={{ animationDelay: "700ms" }}
-              />
-              <circle
-                cx="50"
-                cy="38"
-                r="1.6"
-                fill="var(--gold)"
-                stroke="var(--ink)"
-                strokeWidth="0.5"
-                className="animate-fade-in"
-                style={{ animationDelay: "2300ms" }}
-              />
-            </svg>
-
-            {/* centre: logo with power pulse */}
-            <div
-              className="absolute left-1/2 top-1/2 h-[34%] w-[34%]"
-              style={{
-                transform:
-                  "translate3d(calc(-50% + var(--mx) * 10px), calc(-50% + var(--my) * 10px), 0)",
-              }}
-            >
-              <span
-                aria-hidden="true"
-                className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
-              />
-              <span
-                aria-hidden="true"
-                className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
-                style={{ animationDelay: "1.4s" }}
-              />
-              <div className="animate-disc-in relative grid h-full w-full place-items-center rounded-full bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.3)]">
-                <Image
-                  src="/brand/logo-full.png"
-                  alt=""
-                  width={615}
-                  height={350}
-                  priority
-                  className="h-auto w-[62%]"
-                />
-              </div>
-            </div>
-
-            {/* floating product tiles */}
-            {TILES.map((t) => (
-              <div
-                key={t.label}
-                className={`absolute ${t.pos}`}
-                style={{
-                  transform: `translate3d(calc(var(--mx) * ${t.depth}px), calc(var(--my) * ${t.depth}px), 0)`,
-                  transition: "transform 0.4s cubic-bezier(0.22,1,0.36,1)",
-                }}
-              >
-                <div
-                  className="animate-float"
-                  style={{ animationDuration: t.float }}
-                >
-                  <Link
-                    href="/collections/top-sellers"
-                    style={
-                      {
-                        animationDelay: `${t.enter}ms`,
-                        "--accent": t.accent,
-                      } as React.CSSProperties
-                    }
-                    className={`animate-tile-in group flex items-center gap-3 rounded-2xl border border-white/70 bg-white/75 p-2.5 pr-4 shadow-[0_24px_50px_-24px_rgba(0,0,0,0.35)] backdrop-blur-md transition-transform duration-500 ${EASE} hover:-translate-y-1 hover:scale-[1.04] sm:p-3 sm:pr-5`}
-                  >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-(--accent) text-ink transition-transform duration-500 group-hover:rotate-[-8deg] sm:h-11 sm:w-11">
-                      <TileGlyph name={t.icon} />
-                    </span>
-                    <span className="block leading-tight">
-                      <span className="block text-[13px] font-medium text-ink sm:text-sm">
-                        {t.label}
-                      </span>
-                      <span className="hidden text-xs text-muted sm:block">
-                        {t.note}
-                      </span>
-                    </span>
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Trust bar */}
@@ -513,7 +527,7 @@ export default function Hero() {
             <li
               key={item.title}
               className="animate-fade-up flex items-center gap-4 py-2 sm:px-4 sm:first:pl-0"
-              style={{ animationDelay: `${1300 + i * 120}ms` }}
+              style={{ animationDelay: `${1100 + i * 120}ms` }}
             >
               <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-line text-ink">
                 <svg
