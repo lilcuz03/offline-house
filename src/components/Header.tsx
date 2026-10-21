@@ -10,6 +10,7 @@ import {
   CATEGORIES,
   POPULAR_SEARCHES,
 } from "../lib/categories";
+import { getSupabase, supabaseConfigured } from "@/lib/supabase";
 import { useCart } from "./CartProvider";
 import { useWishlist } from "./WishListProvider";
 
@@ -118,6 +119,7 @@ export default function Header() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [announce, setAnnounce] = useState(0);
   const [query, setQuery] = useState("");
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const searchInput = useRef<HTMLInputElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -191,6 +193,34 @@ export default function Header() {
   useEffect(() => {
     return () => {
       if (closeTimer.current) clearTimeout(closeTimer.current);
+    };
+  }, []);
+
+  // Show an Admin link only to signed-in admins. The admin pages and API
+  // routes still check on the server, so this only decides what is visible.
+  useEffect(() => {
+    if (!supabaseConfigured) return;
+    const sb = getSupabase();
+    let cancelled = false;
+    const check = async (userId: string | undefined) => {
+      if (!userId) {
+        if (!cancelled) setIsAdmin(false);
+        return;
+      }
+      const { data } = await sb
+        .from("profiles")
+        .select("is_admin")
+        .eq("id", userId)
+        .maybeSingle();
+      if (!cancelled) setIsAdmin(Boolean(data?.is_admin));
+    };
+    sb.auth.getSession().then(({ data }) => check(data.session?.user.id));
+    const { data } = sb.auth.onAuthStateChange((_e, session) => {
+      check(session?.user.id);
+    });
+    return () => {
+      cancelled = true;
+      data.subscription.unsubscribe();
     };
   }, []);
 
@@ -363,8 +393,10 @@ export default function Header() {
                 />
               </span>
               <span
-                className={`block overflow-hidden text-[9px] font-light uppercase tracking-[0.5em] text-ink transition-[max-height,opacity,margin] duration-500 ${
-                  scrolled ? "max-h-0 opacity-0" : "mt-1 max-h-4 opacity-100"
+                className={`mt-1 block whitespace-nowrap font-semibold uppercase leading-none text-ink transition-[font-size,letter-spacing] duration-500 ${
+                  scrolled
+                    ? "text-[12px] tracking-[0.3em] lg:text-[13px]"
+                    : "text-[13px] tracking-[0.32em] lg:text-[17px] lg:tracking-[0.38em]"
                 }`}
               >
                 Offline House
@@ -380,6 +412,14 @@ export default function Header() {
               >
                 <SearchIcon />
               </button>
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  className="mr-1 hidden h-9 items-center rounded-full bg-ink px-4 text-[12px] font-medium text-white transition-colors duration-300 hover:bg-gold hover:text-ink sm:inline-flex"
+                >
+                  Admin
+                </Link>
+              )}
               <Link
                 href="/account"
                 aria-label="Account"
@@ -431,6 +471,7 @@ export default function Header() {
                 <li
                   key={item.slug}
                   style={accentVar(item.accent)}
+                  className="relative"
                   onMouseEnter={() =>
                     item.mega ? openMega(item.slug) : setMega(null)
                   }
@@ -452,84 +493,57 @@ export default function Header() {
                       }`}
                     />
                   </Link>
+
+                  {/* Small dropdown under this item. Always in the DOM so crawlers see every collection link. */}
+                  {item.mega &&
+                    (() => {
+                      const c = CATEGORIES.find((x) => x.slug === item.slug);
+                      if (!c) return null;
+                      const open = mega === c.slug;
+                      return (
+                        <div
+                          id={`mega-${c.slug}`}
+                          inert={!open}
+                          aria-hidden={!open}
+                          className={`absolute left-1/2 top-full z-40 w-[23rem] -translate-x-1/2 rounded-2xl border border-line bg-ivory p-5 shadow-[0_18px_40px_-12px_rgba(0,0,0,0.25)] transition-[opacity,transform,visibility] duration-200 ${EASE} ${
+                            open
+                              ? "visible translate-y-0 opacity-100"
+                              : "invisible -translate-y-1 opacity-0"
+                          }`}
+                        >
+                          <ul className="grid grid-cols-2 gap-x-6">
+                            {c.children.map((child) => (
+                              <li key={child.slug}>
+                                <Link
+                                  href={`/collections/${child.slug}`}
+                                  className="block py-2 text-[14px] text-ink transition-colors hover:text-(--accent)"
+                                >
+                                  {child.label}
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="mt-3 flex items-center justify-between gap-4 border-t border-line pt-3 text-[13px]">
+                            <Link
+                              href={`/collections/${c.slug}`}
+                              className="font-medium text-ink underline decoration-(--accent) decoration-2 underline-offset-4"
+                            >
+                              Shop all {c.label.toLowerCase()}
+                            </Link>
+                            <Link
+                              href={`/collections/${c.slug}?sort=best-selling`}
+                              className="text-muted transition-colors hover:text-ink"
+                            >
+                              Best sellers
+                            </Link>
+                          </div>
+                        </div>
+                      );
+                    })()}
                 </li>
               ))}
             </ul>
           </nav>
-
-          {/* Mega panels. Always in the DOM so crawlers see every collection link. */}
-          {CATEGORIES.map((c) => {
-            const open = mega === c.slug;
-            return (
-              <div
-                key={c.slug}
-                id={`mega-${c.slug}`}
-                inert={!open}
-                aria-hidden={!open}
-                style={accentVar(c.accent)}
-                className={`${panelBase} hidden lg:block ${panelState(open)}`}
-              >
-                <div className="mx-auto grid max-w-7xl grid-cols-12 gap-10 px-6 py-10">
-                  <div className="col-span-3">
-                    <p className="font-serif text-4xl text-ink">{c.label}</p>
-                    <p className="mt-3 max-w-[26ch] text-sm leading-relaxed text-muted">
-                      {c.tagline}
-                    </p>
-                    <Link
-                      href={`/collections/${c.slug}`}
-                      className="mt-6 inline-block border-b-2 border-(--accent) pb-1 text-sm font-medium text-ink"
-                    >
-                      Shop all {c.label.toLowerCase()}
-                    </Link>
-                  </div>
-
-                  <ul className="col-span-5 grid grid-cols-2 content-start gap-x-8">
-                    {c.children.map((child) => (
-                      <li key={child.slug}>
-                        <Link
-                          href={`/collections/${child.slug}`}
-                          className="group block border-b border-line py-3"
-                        >
-                          <span
-                            className={`block text-[15px] text-ink transition-transform duration-300 ${EASE} group-hover:translate-x-1`}
-                          >
-                            {child.label}
-                          </span>
-                          <span className="block text-xs text-muted">
-                            {child.hint}
-                          </span>
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-
-                  <Link
-                    href={`/collections/${c.slug}?sort=best-selling`}
-                    className="group relative col-span-4 flex min-h-[220px] flex-col justify-end overflow-hidden rounded-2xl bg-ink p-6 text-white"
-                  >
-                    <Image
-                      src="/brand/logo-full.png"
-                      alt=""
-                      width={615}
-                      height={350}
-                      aria-hidden="true"
-                      className="pointer-events-none absolute -right-8 -top-2 w-56 opacity-25 transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <span className="relative font-serif text-3xl leading-tight text-white">
-                      Best sellers in {c.label.toLowerCase()}
-                    </span>
-                    <span className="relative mt-2 text-sm text-white/70">
-                      The {c.label.toLowerCase()} picks people buy most.
-                    </span>
-                    <span
-                      aria-hidden="true"
-                      className={`relative mt-5 block h-[3px] w-10 bg-(--accent) transition-[width] duration-500 ${EASE} group-hover:w-24`}
-                    />
-                  </Link>
-                </div>
-              </div>
-            );
-          })}
 
           {/* Search panel */}
           <div
@@ -594,9 +608,7 @@ export default function Header() {
               setMega(null);
             }}
             className={`absolute inset-x-0 top-full -z-10 h-screen bg-ink/25 transition-opacity duration-300 ${
-              mega || searchOpen
-                ? "opacity-100"
-                : "pointer-events-none opacity-0"
+              searchOpen ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
           />
         </div>
@@ -635,7 +647,7 @@ export default function Header() {
                 height={350}
                 className="h-7 w-auto"
               />
-              <span className="text-[10px] font-light uppercase tracking-[0.4em] text-ink">
+              <span className="text-[12px] font-semibold uppercase tracking-[0.3em] text-ink">
                 Offline House
               </span>
             </Link>
@@ -772,6 +784,15 @@ export default function Header() {
 
           <div className="shrink-0 border-t border-line px-5 py-5">
             <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-ink">
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMenuOpen(false)}
+                  className="font-medium"
+                >
+                  Admin
+                </Link>
+              )}
               <Link
                 href="/account"
                 onClick={() => setMenuOpen(false)}
