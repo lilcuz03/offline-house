@@ -39,7 +39,7 @@ const PICS: {
   {
     label: "GaN chargers",
     href: "/collections/chargers-adapters",
-    src: "/hero/charger.jpg",
+    src: "/hero/charger.png",
     icon: "charger",
     accent: "var(--cat-tech)",
     pos: "hidden lg:block left-0 top-[3%] h-52 w-40",
@@ -51,7 +51,7 @@ const PICS: {
   {
     label: "Braided cables",
     href: "/collections/cables-usb",
-    src: "/hero/cable.jpg",
+    src: "/hero/cable.png",
     icon: "cable",
     accent: "var(--gold)",
     pos: "hidden lg:block right-0 top-[6%] h-44 w-44",
@@ -63,7 +63,7 @@ const PICS: {
   {
     label: "Phone cases",
     href: "/collections/phone-cases",
-    src: "/hero/case.jpg",
+    src: "/hero/case.png",
     icon: "case",
     accent: "var(--cat-beauty)",
     pos: "hidden lg:block left-[3%] top-[40%] h-44 w-36",
@@ -75,7 +75,7 @@ const PICS: {
   {
     label: "Earbuds",
     href: "/collections/earbuds-audio",
-    src: "/hero/earbuds.jpg",
+    src: "/hero/earbuds.png",
     icon: "earbuds",
     accent: "var(--cat-essentials)",
     pos: "hidden lg:block right-[3%] top-[38%] h-52 w-40",
