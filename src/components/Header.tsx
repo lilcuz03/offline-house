@@ -74,11 +74,6 @@ const BagIcon = () => (
     <path d="M9 8V6.5a3 3 0 0 1 6 0V8" />
   </Icon>
 );
-const MenuIcon = () => (
-  <Icon size={22}>
-    <path d="M4 8h16M4 16h10" />
-  </Icon>
-);
 const CloseIcon = () => (
   <Icon size={22}>
     <path d="m6 6 12 12M18 6 6 18" />
@@ -346,9 +341,9 @@ export default function Header() {
                 aria-label="Open menu"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(true)}
-                className={`${iconButton} lg:hidden`}
+                className="inline-flex h-10 items-center rounded-full px-3 text-[13px] font-medium uppercase tracking-[0.22em] text-ink transition-colors duration-300 hover:bg-stone/40 lg:hidden"
               >
-                <MenuIcon />
+                Menu
               </button>
               <button
                 type="button"
