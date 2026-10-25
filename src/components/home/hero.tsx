@@ -406,11 +406,11 @@ export default function Hero() {
             }}
           >
             <div
-              className="animate-float"
+              className="animate-float h-full w-full"
               style={{ animationDuration: p.float }}
             >
               <div
-                className="animate-tile-in"
+                className="animate-tile-in h-full w-full"
                 style={{ animationDelay: `${p.enter}ms` }}
               >
                 <PicCard
