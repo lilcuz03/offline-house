@@ -436,15 +436,41 @@ export default function Hero() {
               style={{ animationDelay: "1.4s" }}
             />
             <div className="animate-disc-in relative flex h-full w-full flex-col items-center justify-center rounded-full bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.3)] ring-4 ring-gold/60">
+              {/* Slogan running round the inside edge, turning slowly */}
+              <svg
+                viewBox="0 0 200 200"
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 h-full w-full animate-[spin_45s_linear_infinite] motion-reduce:animate-none"
+              >
+                <defs>
+                  <path
+                    id="slogan-ring"
+                    d="M100,100 m-88,0 a88,88 0 1,1 176,0 a88,88 0 1,1 -176,0"
+                  />
+                </defs>
+                <text
+                  fontSize="10.5"
+                  fontWeight="500"
+                  style={{ fill: "var(--gold-deep)" }}
+                >
+                  <textPath
+                    href="#slogan-ring"
+                    textLength="552"
+                    lengthAdjust="spacing"
+                  >
+                    DISCONNECT TO RECONNECT • DISCONNECT TO RECONNECT •{" "}
+                  </textPath>
+                </text>
+              </svg>
               <Image
                 src="/brand/logo-full.png"
                 alt=""
                 width={615}
                 height={350}
                 priority
-                className="h-auto w-[58%]"
+                className="relative h-auto w-[50%]"
               />
-              <h1 className="-mt-1 pl-[0.32em] font-serif text-[0.8rem] font-medium uppercase tracking-[0.32em] text-ink sm:text-sm">
+              <h1 className="relative -mt-1 pl-[0.26em] font-serif text-[0.7rem] font-medium uppercase tracking-[0.26em] text-ink sm:text-[0.8rem]">
                 Offline House
                 <span className="sr-only">
                   . Top-selling tech, home, living, beauty and everyday
