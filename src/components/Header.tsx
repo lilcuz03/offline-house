@@ -335,6 +335,31 @@ export default function Header() {
               scrolled ? "h-16 lg:h-[80px]" : "h-[72px] lg:h-[108px]"
             }`}
           >
+            <div className="flex items-center">
+              <button
+                type="button"
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-10 items-center rounded-full px-3 text-[13px] font-medium uppercase tracking-[0.22em] text-ink transition-colors duration-300 hover:bg-stone/40 lg:hidden"
+              >
+                Menu
+              </button>
+              <button
+                type="button"
+                onClick={openSearch}
+                className="hidden h-10 w-60 items-center gap-3 rounded-full border border-line px-4 text-left text-sm text-muted transition-colors duration-300 hover:border-ink lg:flex xl:w-72"
+              >
+                <SearchIcon size={17} />
+                <span className="flex-1 truncate">
+                  Search chargers, cables, cases
+                </span>
+                <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted">
+                  Ctrl K
+                </kbd>
+              </button>
+            </div>
+
             <Link
               href="/"
               aria-label="Offline House, home"
@@ -372,31 +397,6 @@ export default function Header() {
                 Offline House
               </span>
             </Link>
-
-            <div className="flex items-center">
-              <button
-                type="button"
-                aria-label="Open menu"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(true)}
-                className="inline-flex h-10 items-center rounded-full px-3 text-[13px] font-medium uppercase tracking-[0.22em] text-ink transition-colors duration-300 hover:bg-stone/40 lg:hidden"
-              >
-                Menu
-              </button>
-              <button
-                type="button"
-                onClick={openSearch}
-                className="hidden h-10 w-60 items-center gap-3 rounded-full border border-line px-4 text-left text-sm text-muted transition-colors duration-300 hover:border-ink lg:flex xl:w-72"
-              >
-                <SearchIcon size={17} />
-                <span className="flex-1 truncate">
-                  Search chargers, cables, cases
-                </span>
-                <kbd className="rounded-md border border-line px-1.5 py-0.5 text-[10px] text-muted">
-                  Ctrl K
-                </kbd>
-              </button>
-            </div>
 
             <div className="flex items-center justify-end gap-0.5 sm:gap-1">
               <button
