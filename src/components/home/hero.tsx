@@ -428,11 +428,11 @@ export default function Hero() {
           <div className="relative h-52 w-52 sm:h-64 sm:w-64">
             <span
               aria-hidden="true"
-              className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
+              className="animate-pulse-ring pointer-events-none absolute inset-0 rounded-full border border-gold"
             />
             <span
               aria-hidden="true"
-              className="animate-pulse-ring absolute inset-0 rounded-full border border-gold"
+              className="animate-pulse-ring pointer-events-none absolute inset-0 rounded-full border border-gold"
               style={{ animationDelay: "1.4s" }}
             />
             <div className="animate-disc-in relative flex h-full w-full flex-col items-center justify-center rounded-full bg-white shadow-[0_24px_60px_-20px_rgba(0,0,0,0.3)] ring-4 ring-gold/60">
