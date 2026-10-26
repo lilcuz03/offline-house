@@ -87,7 +87,7 @@ const PICS: {
   {
     label: "Power banks",
     href: "/collections/power-banks",
-    src: "/hero/powerbank.jpg",
+    src: "/hero/powerbank.png",
     icon: "powerbank",
     accent: "var(--cat-tech)",
     pos: "hidden lg:block left-0 bottom-[2%] h-40 w-40",
@@ -99,7 +99,7 @@ const PICS: {
   {
     label: "Skincare tools",
     href: "/collections/skincare-tools",
-    src: "/hero/skincare.jpg",
+    src: "/hero/skincare.png",
     icon: "skincare",
     accent: "var(--cat-beauty)",
     pos: "hidden lg:block right-0 bottom-[2%] h-44 w-36",
@@ -111,7 +111,7 @@ const PICS: {
   {
     label: "Lighting",
     href: "/collections/lighting",
-    src: "/hero/lamp.jpg",
+    src: "/hero/lamp.png",
     icon: "lamp",
     accent: "var(--gold)",
     pos: "hidden xl:block left-[19%] top-0 h-28 w-28",
@@ -123,7 +123,7 @@ const PICS: {
   {
     label: "Kitchen",
     href: "/collections/kitchen",
-    src: "/hero/kitchen.jpg",
+    src: "/hero/kitchen.png",
     icon: "kitchen",
     accent: "var(--cat-essentials)",
     pos: "hidden xl:block right-[19%] bottom-0 h-28 w-28",
